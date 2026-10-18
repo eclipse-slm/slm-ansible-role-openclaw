@@ -9,7 +9,7 @@ What the role does with `slm_ansible_role_openclaw_state: present`:
 
 1. Installs Node.js from the NodeSource apt repository (major version 24 by default).
 2. Creates the system user `openclaw` with home `/var/lib/openclaw`.
-3. Installs the pinned npm package `openclaw` globally (upgrades or downgrades on version change).
+3. Installs the pinned npm package `openclaw` globally and upgrades it when the version changes.
 4. Renders `openclaw.json` from Ansible variables, validated with
    `openclaw config validate` **before** it replaces the live file, and a
    `.env` file with the gateway token and other secrets.
@@ -36,7 +36,7 @@ the NodeSource repository.
 | `slm_ansible_role_openclaw_state` | `present` | `present` installs/configures, `absent` removes. |
 | `slm_ansible_role_openclaw_nodejs_major` | `24` | NodeSource major version. openclaw needs `>=24.16 <25` or `>=26.1`. |
 | `slm_ansible_role_openclaw_nodejs_manage` | `true` | Set `false` if Node.js is installed by other means; the version is still checked. |
-| `slm_ansible_role_openclaw_version` | `2026.10.4` | Exact npm version of `openclaw`. |
+| `slm_ansible_role_openclaw_version` | `2026.10.4` | Exact npm version of `openclaw`. Only upgrade it: once a newer release has migrated the state database, an older release refuses to start (exit code 78). |
 | `slm_ansible_role_openclaw_user` | `openclaw` | Service user. |
 | `slm_ansible_role_openclaw_group` | `openclaw` | Service group. |
 | `slm_ansible_role_openclaw_home` | `/var/lib/openclaw` | Home of the service user. |

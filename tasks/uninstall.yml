@@ -65,7 +65,14 @@
         state: absent
         purge: true
 
+    # deb822_repository needs python3-debian even for state absent
+    - name: Stat NodeSource repository
+      ansible.builtin.stat:
+        path: /etc/apt/sources.list.d/nodesource.sources
+      register: __slm_ansible_role_openclaw_nodesource_stat
+
     - name: Remove NodeSource repository
       ansible.builtin.deb822_repository:
         name: nodesource
         state: absent
+      when: __slm_ansible_role_openclaw_nodesource_stat.stat.exists

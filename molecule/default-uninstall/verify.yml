@@ -52,3 +52,23 @@
         that:
           - "'nodejs' not in ansible_facts.packages"
         fail_msg: nodejs package still installed
+
+# absent must also work on a host where nothing is installed, including
+# hosts without python3-debian (needed by deb822_repository)
+- name: VERIFY | ABSENT ON A CLEAN HOST
+  hosts: all
+  become: true
+  gather_facts: true
+  tasks:
+    - name: Remove python3-debian
+      ansible.builtin.apt:
+        name: python3-debian
+        state: absent
+
+    - name: Apply role with state absent on a clean host
+      ansible.builtin.include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+      vars:
+        slm_ansible_role_openclaw_state: absent
+        slm_ansible_role_openclaw_uninstall_nodejs: true
+        slm_ansible_role_openclaw_uninstall_purge: true
