@@ -33,7 +33,7 @@ ansible:
   playbooks:
     create: ../default/create-kv.yml
     destroy: ../default/destroy-kv.yml
-    prepare: ../default/prepare.yml
+    prepare: ../default-install/prepare.yml
     converge: ../default-install/converge.yml
     verify: ../default-install/verify.yml
 

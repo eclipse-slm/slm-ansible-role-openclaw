@@ -1,0 +1,36 @@
+---
+- name: Read installed openclaw package
+  ansible.builtin.command: npm ls -g --depth=0 --json openclaw
+  changed_when: false
+  failed_when: __slm_ansible_role_openclaw_npm_ls.rc not in [0, 1]
+  register: __slm_ansible_role_openclaw_npm_ls
+
+- name: Read npm version
+  ansible.builtin.command: npm --version
+  changed_when: false
+  register: __slm_ansible_role_openclaw_npm_version
+
+# npm >= 11.16 blocks install scripts unless the package is explicitly allowed
+- name: Install openclaw package
+  vars:
+    __installed: "{{ ((__slm_ansible_role_openclaw_npm_ls.stdout | default('{}', true) | from_json).dependencies | default({})).openclaw.version | default('') }}"
+    __allow_scripts: "{{ (__slm_ansible_role_openclaw_npm_version.stdout | trim) is version('11.16', '>=') }}"
+  ansible.builtin.command: >-
+    npm install -g --no-fund --no-audit
+    {{ '--allow-scripts=openclaw' if __allow_scripts else '' }}
+    openclaw@{{ slm_ansible_role_openclaw_version }}
+  when: __installed != slm_ansible_role_openclaw_version
+  changed_when: true
+  notify: Restart openclaw gateway
+
+- name: Stat openclaw binary
+  ansible.builtin.stat:
+    path: "{{ __slm_ansible_role_openclaw_bin }}"
+  register: __slm_ansible_role_openclaw_bin_stat
+
+- name: Validate openclaw binary exists
+  ansible.builtin.assert:
+    that:
+      - __slm_ansible_role_openclaw_bin_stat.stat.exists
+    fail_msg: "{{ __slm_ansible_role_openclaw_bin }} not found after npm install; check the npm global prefix."
+    quiet: true

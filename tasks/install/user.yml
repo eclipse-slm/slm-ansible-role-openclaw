@@ -1,0 +1,24 @@
+---
+- name: Create service group
+  ansible.builtin.group:
+    name: "{{ slm_ansible_role_openclaw_group }}"
+    system: true
+    state: present
+
+- name: Create service user
+  ansible.builtin.user:
+    name: "{{ slm_ansible_role_openclaw_user }}"
+    group: "{{ slm_ansible_role_openclaw_group }}"
+    home: "{{ slm_ansible_role_openclaw_home }}"
+    create_home: true
+    shell: /usr/sbin/nologin
+    system: true
+    state: present
+
+- name: Create state directory
+  ansible.builtin.file:
+    path: "{{ slm_ansible_role_openclaw_state_dir }}"
+    state: directory
+    owner: "{{ slm_ansible_role_openclaw_user }}"
+    group: "{{ slm_ansible_role_openclaw_group }}"
+    mode: "0700"

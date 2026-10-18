@@ -1,3 +1,9 @@
 ---
 - name: Include Node.js tasks
   ansible.builtin.include_tasks: install/nodejs.yml
+
+- name: Include service user tasks
+  ansible.builtin.include_tasks: install/user.yml
+
+- name: Include package tasks
+  ansible.builtin.include_tasks: install/package.yml

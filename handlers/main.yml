@@ -1,2 +1,5 @@
 ---
-[]
+# Placeholder until the systemd service exists
+- name: Restart openclaw gateway
+  ansible.builtin.debug:
+    msg: Gateway restart requested

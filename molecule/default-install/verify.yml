@@ -19,3 +19,39 @@
             or __node_version is version('26.1.0', '>=')
         fail_msg: "Node.js {{ __node_version }} does not satisfy >=24.16.0 <25 || >=26.1.0"
         success_msg: "Node.js {{ __node_version }} is supported"
+
+    - name: Read service user
+      ansible.builtin.getent:
+        database: passwd
+        key: openclaw
+
+    - name: Assert service user home and shell
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['getent_passwd']['openclaw'][4] == '/var/lib/openclaw'
+          - ansible_facts['getent_passwd']['openclaw'][5] == '/usr/sbin/nologin'
+        fail_msg: "Unexpected passwd entry: {{ ansible_facts['getent_passwd']['openclaw'] }}"
+
+    - name: Stat state directory
+      ansible.builtin.stat:
+        path: /var/lib/openclaw/.openclaw
+      register: __verify_state_dir
+
+    - name: Assert state directory is private to the service user
+      ansible.builtin.assert:
+        that:
+          - __verify_state_dir.stat.isdir
+          - __verify_state_dir.stat.mode == '0700'
+          - __verify_state_dir.stat.pw_name == 'openclaw'
+        fail_msg: "State dir not 0700/openclaw: {{ __verify_state_dir.stat }}"
+
+    - name: Read openclaw version
+      ansible.builtin.command: /usr/bin/openclaw --version
+      changed_when: false
+      register: __verify_openclaw_version
+
+    - name: Assert pinned openclaw version is installed
+      ansible.builtin.assert:
+        that:
+          - "'OpenClaw 2026.10.4' in __verify_openclaw_version.stdout"
+        fail_msg: "Expected OpenClaw 2026.10.4, got: {{ __verify_openclaw_version.stdout }}"
