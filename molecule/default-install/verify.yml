@@ -166,3 +166,44 @@
           - __verify_bad_config_rejected | bool
           - __verify_config_before.stat.checksum == __verify_config_after.stat.checksum
         fail_msg: Unknown config key was not rejected or openclaw.json was replaced
+
+    - name: Stat systemd unit
+      ansible.builtin.stat:
+        path: /etc/systemd/system/openclaw-gateway.service
+      register: __verify_unit
+
+    - name: Read service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert gateway service is running and enabled
+      ansible.builtin.assert:
+        that:
+          - __verify_unit.stat.exists
+          - "'openclaw-gateway.service' in ansible_facts.services"
+          - ansible_facts.services['openclaw-gateway.service'].state == 'running'
+          - ansible_facts.services['openclaw-gateway.service'].status == 'enabled'
+        fail_msg: openclaw-gateway.service is missing, not running or not enabled
+        success_msg: openclaw-gateway.service is running and enabled
+
+    - name: Wait for gateway port
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 18789
+        timeout: 120
+
+    - name: Read gateway status as service user
+      ansible.builtin.command: /usr/bin/openclaw gateway status
+      become: true
+      become_user: openclaw
+      environment:
+        OPENCLAW_CONFIG_PATH: /var/lib/openclaw/.openclaw/openclaw.json
+        OPENCLAW_STATE_DIR: /var/lib/openclaw/.openclaw
+      changed_when: false
+      register: __verify_gateway_status
+
+    - name: Assert gateway answers the connectivity probe
+      ansible.builtin.assert:
+        that:
+          - __verify_gateway_status.rc == 0
+          - "'Connectivity probe: ok' in __verify_gateway_status.stdout"
+        fail_msg: "Gateway status failed: {{ __verify_gateway_status.stdout }}"

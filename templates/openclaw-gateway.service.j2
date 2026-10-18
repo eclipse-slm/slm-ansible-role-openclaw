@@ -1,0 +1,24 @@
+# Managed by Ansible - manual changes will be overwritten
+[Unit]
+Description=OpenClaw Gateway
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ slm_ansible_role_openclaw_user }}
+Group={{ slm_ansible_role_openclaw_group }}
+WorkingDirectory={{ slm_ansible_role_openclaw_home }}
+Environment=OPENCLAW_STATE_DIR={{ slm_ansible_role_openclaw_state_dir }}
+Environment=OPENCLAW_CONFIG_PATH={{ slm_ansible_role_openclaw_config_path }}
+Environment=OPENCLAW_SERVICE_REPAIR_POLICY=external
+Environment=OPENCLAW_LOG_LEVEL={{ slm_ansible_role_openclaw_log_level }}
+ExecStart={{ __slm_ansible_role_openclaw_bin }} gateway run --port {{ slm_ansible_role_openclaw_gateway_port }}
+Restart=always
+RestartSec=5
+# Exit code 78 means invalid configuration; do not restart-loop on it
+RestartPreventExitStatus=78
+TimeoutStopSec=330
+
+[Install]
+WantedBy=multi-user.target

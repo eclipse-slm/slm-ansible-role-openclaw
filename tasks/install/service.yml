@@ -1,0 +1,28 @@
+---
+- name: Render systemd unit
+  ansible.builtin.template:
+    src: openclaw-gateway.service.j2
+    dest: "{{ __slm_ansible_role_openclaw_unit_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart openclaw gateway
+
+- name: Enable and start gateway service
+  ansible.builtin.systemd_service:
+    name: "{{ slm_ansible_role_openclaw_service_name }}"
+    enabled: "{{ slm_ansible_role_openclaw_service_enabled | bool }}"
+    state: started
+    daemon_reload: true
+
+- name: Apply pending gateway restarts
+  ansible.builtin.meta: flush_handlers
+
+- name: Wait for gateway port
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: "{{ slm_ansible_role_openclaw_gateway_port }}"
+    timeout: 120
+    msg: >-
+      Gateway did not open port {{ slm_ansible_role_openclaw_gateway_port }};
+      check journalctl -u {{ slm_ansible_role_openclaw_service_name }}.

@@ -1,5 +1,6 @@
 ---
-# Placeholder until the systemd service exists
 - name: Restart openclaw gateway
-  ansible.builtin.debug:
-    msg: Gateway restart requested
+  ansible.builtin.systemd_service:
+    name: "{{ slm_ansible_role_openclaw_service_name }}"
+    state: restarted
+    daemon_reload: true

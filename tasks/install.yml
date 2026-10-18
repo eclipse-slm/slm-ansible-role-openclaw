@@ -10,3 +10,6 @@
 
 - name: Include config tasks
   ansible.builtin.include_tasks: install/config.yml
+
+- name: Include service tasks
+  ansible.builtin.include_tasks: install/service.yml
