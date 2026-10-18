@@ -1,0 +1,40 @@
+---
+# present | absent
+slm_ansible_role_openclaw_state: present
+
+# Node.js (NodeSource apt repository)
+slm_ansible_role_openclaw_nodejs_major: 24
+# Set to false if Node.js is managed outside this role
+slm_ansible_role_openclaw_nodejs_manage: true
+
+# Exact npm version of the openclaw package
+slm_ansible_role_openclaw_version: "2026.10.4"
+
+# Service user and paths
+slm_ansible_role_openclaw_user: openclaw
+slm_ansible_role_openclaw_group: openclaw
+slm_ansible_role_openclaw_home: /var/lib/openclaw
+slm_ansible_role_openclaw_state_dir: "{{ slm_ansible_role_openclaw_home }}/.openclaw"
+slm_ansible_role_openclaw_config_path: "{{ slm_ansible_role_openclaw_state_dir }}/openclaw.json"
+slm_ansible_role_openclaw_env_path: "{{ slm_ansible_role_openclaw_state_dir }}/.env"
+
+# Gateway
+slm_ansible_role_openclaw_gateway_port: 18789
+# Required when state is present; keep it in Ansible Vault
+slm_ansible_role_openclaw_gateway_token: ""
+
+# Free-form openclaw.json content, merged recursively over the role's base config
+slm_ansible_role_openclaw_config: {}
+
+# Extra variables written to the .env file, e.g. ANTHROPIC_API_KEY (vault them)
+slm_ansible_role_openclaw_env: {}
+
+# Service
+slm_ansible_role_openclaw_service_name: openclaw-gateway
+slm_ansible_role_openclaw_service_enabled: true
+slm_ansible_role_openclaw_log_level: info
+
+# Uninstall: also remove state dir, user and group
+slm_ansible_role_openclaw_uninstall_purge: false
+# Uninstall: also remove nodejs and the NodeSource repository
+slm_ansible_role_openclaw_uninstall_nodejs: false

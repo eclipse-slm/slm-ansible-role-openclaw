@@ -1,0 +1,41 @@
+---
+- name: Validate operating system
+  ansible.builtin.assert:
+    that:
+      - ansible_facts['distribution'] == 'Ubuntu'
+      - ansible_facts['distribution_version'] in __slm_ansible_role_openclaw_supported_versions
+    fail_msg: >-
+      Unsupported OS {{ ansible_facts['distribution'] | default('unknown') }}
+      {{ ansible_facts['distribution_version'] | default('') }}; supported are Ubuntu
+      {{ __slm_ansible_role_openclaw_supported_versions | join(', ') }}.
+    quiet: true
+
+- name: Validate state
+  ansible.builtin.assert:
+    that:
+      - slm_ansible_role_openclaw_state in __slm_ansible_role_openclaw_states
+    fail_msg: >-
+      slm_ansible_role_openclaw_state must be one of
+      {{ __slm_ansible_role_openclaw_states }} but was
+      {{ slm_ansible_role_openclaw_state | default('unset') }}.
+    quiet: true
+
+- name: Validate gateway token
+  ansible.builtin.assert:
+    that:
+      - slm_ansible_role_openclaw_gateway_token | length > 0
+    fail_msg: slm_ansible_role_openclaw_gateway_token must be set when state is present.
+    quiet: true
+  when: slm_ansible_role_openclaw_state == 'present'
+
+# Values are written single-quoted to the .env file, which has no escaping
+- name: Validate env values
+  ansible.builtin.assert:
+    that:
+      - __slm_ansible_role_openclaw_env_all.values() | map('string') | select('search', "['\n]") | list | length == 0
+    fail_msg: >-
+      Values of slm_ansible_role_openclaw_gateway_token and slm_ansible_role_openclaw_env
+      must not contain single quotes or newlines.
+    quiet: true
+  when: slm_ansible_role_openclaw_state == 'present'
+  no_log: true

@@ -1,0 +1,20 @@
+---
+galaxy_info:
+  author: Benjamin Goetz
+  description: Ansible role that installs and configures the OpenClaw gateway as a systemd service on Ubuntu.
+  company: Fraunhofer IPA
+  role_name: openclaw
+  namespace: eclipse_slm
+  license: MIT
+  min_ansible_version: "2.15"
+  platforms:
+    - name: Ubuntu
+      versions:
+        - jammy
+        - noble
+  galaxy_tags:
+    - openclaw
+    - ai
+    - gateway
+
+dependencies: []

@@ -1,0 +1,4 @@
+.idea
+local.env
+molecule/*/roles/*
+__pycache__

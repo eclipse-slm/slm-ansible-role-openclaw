@@ -1,0 +1,11 @@
+---
+- name: Include input validation
+  ansible.builtin.include_tasks: validate.yml
+
+- name: Include install tasks
+  ansible.builtin.include_tasks: install.yml
+  when: slm_ansible_role_openclaw_state == 'present'
+
+- name: Include uninstall tasks
+  ansible.builtin.include_tasks: uninstall.yml
+  when: slm_ansible_role_openclaw_state == 'absent'

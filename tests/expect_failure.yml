@@ -1,0 +1,34 @@
+---
+# Included once per case by test_validation.yml: the role's input validation
+# must reject item.state/token/env with a fail_msg containing item.expect.
+- name: "Reset result for case: {{ item.name }}"
+  ansible.builtin.set_fact:
+    __case_failed: false
+    __case_msg: ''
+
+- name: "Run validation for case: {{ item.name }}"
+  block:
+    - name: "Include role validation for case: {{ item.name }}"
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir | dirname }}"
+        tasks_from: validate.yml
+      vars:
+        slm_ansible_role_openclaw_env: "{{ item.env | default({}) }}"
+        slm_ansible_role_openclaw_gateway_token: "{{ item.token | default('valid-token') }}"
+        slm_ansible_role_openclaw_state: "{{ item.state | default('present') }}"
+
+  rescue:
+    - name: "Record failure for case: {{ item.name }}"
+      ansible.builtin.set_fact:
+        __case_failed: true
+        __case_msg: "{{ ansible_failed_result.msg | default('') }}"
+
+- name: "Assert validation rejected case: {{ item.name }}"
+  ansible.builtin.assert:
+    that:
+      - __case_failed | bool
+      - item.expect in __case_msg
+    fail_msg: >-
+      Case '{{ item.name }}' was not rejected as expected
+      (failed={{ __case_failed }}, msg={{ __case_msg }}).
+    success_msg: "Case '{{ item.name }}' rejected as expected"

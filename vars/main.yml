@@ -1,0 +1,31 @@
+---
+__slm_ansible_role_openclaw_supported_versions:
+  - '22.04'
+  - '24.04'
+
+__slm_ansible_role_openclaw_states:
+  - present
+  - absent
+
+__slm_ansible_role_openclaw_bin: /usr/bin/openclaw
+__slm_ansible_role_openclaw_unit_path: "/etc/systemd/system/{{ slm_ansible_role_openclaw_service_name }}.service"
+
+__slm_ansible_role_openclaw_nodesource_uri: "https://deb.nodesource.com/node_{{ slm_ansible_role_openclaw_nodejs_major }}.x"
+__slm_ansible_role_openclaw_nodesource_key: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+
+# The token stays a ${VAR} reference; the value only lives in the .env file
+__slm_ansible_role_openclaw_base_config:
+  gateway:
+    mode: local
+    bind: loopback
+    port: "{{ slm_ansible_role_openclaw_gateway_port | int }}"
+    auth:
+      mode: token
+      token: "${OPENCLAW_GATEWAY_TOKEN}"
+  agents:
+    defaults:
+      workspace: "{{ slm_ansible_role_openclaw_state_dir }}/workspace"
+
+__slm_ansible_role_openclaw_effective_config: "{{ __slm_ansible_role_openclaw_base_config | combine(slm_ansible_role_openclaw_config, recursive=True) }}"
+
+__slm_ansible_role_openclaw_env_all: "{{ {'OPENCLAW_GATEWAY_TOKEN': slm_ansible_role_openclaw_gateway_token} | combine(slm_ansible_role_openclaw_env) }}"

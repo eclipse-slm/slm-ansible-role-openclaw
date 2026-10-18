@@ -1,0 +1,48 @@
+---
+# Fast local test of the role's input validation. Only tasks/validate.yml is
+# included, so nothing is ever installed on the machine running this test.
+- name: TEST | Input validation
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    __cases:
+      - name: invalid state
+        state: purged
+        expect: slm_ansible_role_openclaw_state must be one of
+
+      - name: missing token
+        token: ''
+        expect: slm_ansible_role_openclaw_gateway_token must be set
+
+      - name: quote in token
+        token: "ab'c"
+        expect: must not contain single quotes or newlines
+
+      - name: newline in env
+        env:
+          FOO: "a\nb"
+        expect: must not contain single quotes or newlines
+  tasks:
+    - name: Run validation cases
+      ansible.builtin.include_tasks: expect_failure.yml
+      loop: "{{ __cases }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Accept valid input with special characters
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir | dirname }}"
+        tasks_from: validate.yml
+      vars:
+        slm_ansible_role_openclaw_env:
+          DUMMY_PROVIDER_KEY: not-a-real-key
+        slm_ansible_role_openclaw_gateway_token: 'molecule-t0ken"$#x y'
+        slm_ansible_role_openclaw_state: present
+
+    - name: Accept absent state without token
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir | dirname }}"
+        tasks_from: validate.yml
+      vars:
+        slm_ansible_role_openclaw_state: absent
