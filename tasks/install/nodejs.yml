@@ -1,0 +1,47 @@
+---
+- name: Install Node.js from NodeSource
+  when: slm_ansible_role_openclaw_nodejs_manage | bool
+  block:
+    - name: Install NodeSource repository prerequisites
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Add NodeSource repository
+      ansible.builtin.deb822_repository:
+        name: nodesource
+        types: deb
+        uris: "{{ __slm_ansible_role_openclaw_nodesource_uri }}"
+        suites: nodistro
+        components: main
+        signed_by: "{{ __slm_ansible_role_openclaw_nodesource_key }}"
+        install_python_debian: true
+        state: present
+      register: __slm_ansible_role_openclaw_nodesource_repo
+
+    - name: Install Node.js
+      ansible.builtin.apt:
+        name: nodejs
+        state: present
+        update_cache: "{{ __slm_ansible_role_openclaw_nodesource_repo is changed }}"
+
+- name: Read installed Node.js version
+  ansible.builtin.command: node --version
+  changed_when: false
+  register: __slm_ansible_role_openclaw_node_version
+
+- name: Validate Node.js version satisfies openclaw engines
+  vars:
+    __node_version: "{{ __slm_ansible_role_openclaw_node_version.stdout | trim | regex_replace('^v', '') }}"
+  ansible.builtin.assert:
+    that:
+      - >-
+        (__node_version is version('24.16.0', '>=') and __node_version is version('25', '<'))
+        or __node_version is version('26.1.0', '>=')
+    fail_msg: "Node.js {{ __node_version }} does not satisfy >=24.16.0 <25 || >=26.1.0 required by openclaw."
+    quiet: true

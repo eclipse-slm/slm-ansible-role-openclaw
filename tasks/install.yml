@@ -1,2 +1,3 @@
 ---
-[]
+- name: Include Node.js tasks
+  ansible.builtin.include_tasks: install/nodejs.yml

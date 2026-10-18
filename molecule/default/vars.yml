@@ -1,0 +1,11 @@
+---
+# Role input shared by all converge and prepare playbooks. The token contains
+# characters that must survive the .env file literally.
+slm_ansible_role_openclaw_config:
+  agents:
+    defaults:
+      heartbeat:
+        every: 2h
+slm_ansible_role_openclaw_env:
+  DUMMY_PROVIDER_KEY: not-a-real-key
+slm_ansible_role_openclaw_gateway_token: 'molecule-t0ken"$#x y'

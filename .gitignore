@@ -2,3 +2,4 @@
 local.env
 molecule/*/roles/*
 __pycache__
+.ansible/

@@ -1,0 +1,23 @@
+---
+- name: Prepare - wait for SSH on all inventory hosts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  become: false
+  vars:
+    ssh_wait_timeout: 300
+    ssh_wait_delay: 0
+    ssh_wait_connect_timeout: 5
+    ssh_wait_sleep: 2
+  tasks:
+    - name: Wait for SSH to become available
+      ansible.builtin.wait_for:
+        host: "{{ hostvars[item].ansible_host | default(item) }}"
+        port: "{{ hostvars[item].ansible_port | default(22) }}"
+        timeout: "{{ ssh_wait_timeout }}"
+        delay: "{{ ssh_wait_delay }}"
+        connect_timeout: "{{ ssh_wait_connect_timeout }}"
+        sleep: "{{ ssh_wait_sleep }}"
+      loop: "{{ groups['all'] | default([]) }}"
+      loop_control:
+        label: "{{ item }}"

@@ -6,3 +6,5 @@ skip_list:
   # Variables use the prefix slm_ansible_role_openclaw_, which differs from
   # role_name by convention of the eclipse-slm roles
   - var-naming[no-role-prefix]
+kinds:
+  - vars: "**/molecule/default/vars.yml"

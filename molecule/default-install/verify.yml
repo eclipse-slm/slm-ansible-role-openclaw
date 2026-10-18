@@ -1,0 +1,21 @@
+---
+- name: VERIFY | INSTALL OPENCLAW
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read Node.js version
+      ansible.builtin.command: node --version
+      changed_when: false
+      register: __verify_node
+
+    - name: Assert Node.js version satisfies openclaw engines
+      vars:
+        __node_version: "{{ __verify_node.stdout | trim | regex_replace('^v', '') }}"
+      ansible.builtin.assert:
+        that:
+          - >-
+            (__node_version is version('24.16.0', '>=') and __node_version is version('25', '<'))
+            or __node_version is version('26.1.0', '>=')
+        fail_msg: "Node.js {{ __node_version }} does not satisfy >=24.16.0 <25 || >=26.1.0"
+        success_msg: "Node.js {{ __node_version }} is supported"
