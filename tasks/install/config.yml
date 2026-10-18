@@ -1,0 +1,23 @@
+---
+# The CLI rejects unknown keys before the live file is replaced
+- name: Render openclaw.json
+  ansible.builtin.template:
+    src: openclaw.json.j2
+    dest: "{{ slm_ansible_role_openclaw_config_path }}"
+    owner: "{{ slm_ansible_role_openclaw_user }}"
+    group: "{{ slm_ansible_role_openclaw_group }}"
+    mode: "0600"
+    validate: >-
+      env OPENCLAW_CONFIG_PATH=%s OPENCLAW_STATE_DIR={{ slm_ansible_role_openclaw_state_dir }}
+      {{ __slm_ansible_role_openclaw_bin }} config validate
+  notify: Restart openclaw gateway
+
+- name: Render secret env file
+  ansible.builtin.template:
+    src: openclaw.env.j2
+    dest: "{{ slm_ansible_role_openclaw_env_path }}"
+    owner: "{{ slm_ansible_role_openclaw_user }}"
+    group: "{{ slm_ansible_role_openclaw_group }}"
+    mode: "0600"
+  no_log: true
+  notify: Restart openclaw gateway

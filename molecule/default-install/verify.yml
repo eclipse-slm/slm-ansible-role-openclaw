@@ -55,3 +55,114 @@
         that:
           - "'OpenClaw 2026.10.4' in __verify_openclaw_version.stdout"
         fail_msg: "Expected OpenClaw 2026.10.4, got: {{ __verify_openclaw_version.stdout }}"
+
+    - name: Stat config and env files
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: __verify_config_files
+      loop:
+        - /var/lib/openclaw/.openclaw/openclaw.json
+        - /var/lib/openclaw/.openclaw/.env
+
+    - name: Assert config and env files are private to the service user
+      ansible.builtin.assert:
+        that:
+          - item.stat.exists
+          - item.stat.mode == '0600'
+          - item.stat.pw_name == 'openclaw'
+        fail_msg: "{{ item.item }} missing or not 0600/openclaw"
+      loop: "{{ __verify_config_files.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read rendered config
+      ansible.builtin.slurp:
+        path: /var/lib/openclaw/.openclaw/openclaw.json
+      register: __verify_config_raw
+
+    - name: Assert rendered config content
+      vars:
+        __text: "{{ __verify_config_raw.content | b64decode }}"
+        __cfg: "{{ __text | from_json }}"
+      ansible.builtin.assert:
+        that:
+          - __cfg.gateway.mode == 'local'
+          - __cfg.gateway.bind == 'loopback'
+          - __cfg.gateway.port == 18789
+          - __cfg.gateway.auth.mode == 'token'
+          - __cfg.gateway.auth.token == '${OPENCLAW_GATEWAY_TOKEN}'
+          - __cfg.agents.defaults.workspace == '/var/lib/openclaw/.openclaw/workspace'
+          - __cfg.agents.defaults.heartbeat.every == '2h'
+          - "'molecule-t0ken' not in __text"
+        fail_msg: "Unexpected openclaw.json: {{ __text }}"
+
+    - name: Find files under the state directory
+      ansible.builtin.find:
+        paths: /var/lib/openclaw/.openclaw
+        recurse: true
+        file_type: any
+        hidden: true
+      register: __verify_state_files
+
+    - name: Assert no file under the state directory is owned by another user
+      ansible.builtin.assert:
+        that:
+          - __verify_state_files.files | rejectattr('pw_name', 'equalto', 'openclaw') | list | length == 0
+        fail_msg: >-
+          Not owned by openclaw:
+          {{ __verify_state_files.files | rejectattr('pw_name', 'equalto', 'openclaw') | map(attribute='path') | list }}
+
+    - name: Read env file
+      ansible.builtin.slurp:
+        path: /var/lib/openclaw/.openclaw/.env
+      register: __verify_env_raw
+      no_log: true
+
+    - name: Assert env file holds single-quoted secrets
+      vars:
+        __lines: "{{ (__verify_env_raw.content | b64decode).splitlines() }}"
+      ansible.builtin.assert:
+        that:
+          - >-
+            "OPENCLAW_GATEWAY_TOKEN='molecule-t0ken\"$#x y'" in __lines
+          - >-
+            "DUMMY_PROVIDER_KEY='not-a-real-key'" in __lines
+        fail_msg: .env does not contain the expected single-quoted entries
+      no_log: true
+
+    - name: Checksum config before applying an invalid one
+      ansible.builtin.stat:
+        path: /var/lib/openclaw/.openclaw/openclaw.json
+      register: __verify_config_before
+
+    - name: Apply config with an unknown key
+      block:
+        - name: Run role config tasks with an unknown key
+          ansible.builtin.include_role:
+            name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+            tasks_from: install/config.yml
+          vars:
+            slm_ansible_role_openclaw_config:
+              gateway:
+                bogus: 1
+            slm_ansible_role_openclaw_gateway_token: verify-token
+
+        - name: Record that the invalid config was accepted
+          ansible.builtin.set_fact:
+            __verify_bad_config_rejected: false
+      rescue:
+        - name: Record that the invalid config was rejected
+          ansible.builtin.set_fact:
+            __verify_bad_config_rejected: true
+
+    - name: Checksum config after applying an invalid one
+      ansible.builtin.stat:
+        path: /var/lib/openclaw/.openclaw/openclaw.json
+      register: __verify_config_after
+
+    - name: Assert invalid config was rejected and the existing one kept
+      ansible.builtin.assert:
+        that:
+          - __verify_bad_config_rejected | bool
+          - __verify_config_before.stat.checksum == __verify_config_after.stat.checksum
+        fail_msg: Unknown config key was not rejected or openclaw.json was replaced
