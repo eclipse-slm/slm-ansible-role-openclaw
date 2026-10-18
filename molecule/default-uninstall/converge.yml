@@ -1,0 +1,13 @@
+---
+- name: CONVERGE | UNINSTALL OPENCLAW
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    slm_ansible_role_openclaw_state: absent
+    slm_ansible_role_openclaw_uninstall_nodejs: true
+    slm_ansible_role_openclaw_uninstall_purge: true
+  tasks:
+    - name: Apply role under test with state absent
+      ansible.builtin.include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"

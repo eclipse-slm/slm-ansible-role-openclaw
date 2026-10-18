@@ -1,0 +1,54 @@
+---
+- name: VERIFY | UNINSTALL OPENCLAW
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert gateway service is gone
+      ansible.builtin.assert:
+        that:
+          - "'openclaw-gateway.service' not in ansible_facts.services"
+        fail_msg: openclaw-gateway.service still present
+
+    - name: Stat removed paths
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: __verify_removed
+      loop:
+        - /etc/systemd/system/openclaw-gateway.service
+        - /usr/bin/openclaw
+        - /var/lib/openclaw
+        - /etc/apt/sources.list.d/nodesource.sources
+
+    - name: Assert paths are removed
+      ansible.builtin.assert:
+        that:
+          - not item.stat.exists
+        fail_msg: "{{ item.item }} still exists"
+      loop: "{{ __verify_removed.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+    - name: Read service user
+      ansible.builtin.getent:
+        database: passwd
+        key: openclaw
+        fail_key: false
+
+    - name: Assert service user is removed
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['getent_passwd']['openclaw'] is none
+        fail_msg: user openclaw still exists
+
+    - name: Read package facts
+      ansible.builtin.package_facts:
+
+    - name: Assert nodejs is removed
+      ansible.builtin.assert:
+        that:
+          - "'nodejs' not in ansible_facts.packages"
+        fail_msg: nodejs package still installed

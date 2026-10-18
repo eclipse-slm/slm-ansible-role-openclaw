@@ -1,0 +1,14 @@
+---
+- name: Wait for SSH
+  ansible.builtin.import_playbook: ../default/prepare.yml
+
+- name: PREPARE | INSTALL OPENCLAW
+  hosts: all
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../default/vars.yml
+  tasks:
+    - name: Apply role under test with state present
+      ansible.builtin.include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"

@@ -1,2 +1,71 @@
 ---
-[]
+- name: Stat systemd unit
+  ansible.builtin.stat:
+    path: "{{ __slm_ansible_role_openclaw_unit_path }}"
+  register: __slm_ansible_role_openclaw_unit_stat
+
+- name: Stop and disable gateway service
+  ansible.builtin.systemd_service:
+    name: "{{ slm_ansible_role_openclaw_service_name }}"
+    state: stopped
+    enabled: false
+  when: __slm_ansible_role_openclaw_unit_stat.stat.exists
+
+- name: Remove systemd unit
+  ansible.builtin.file:
+    path: "{{ __slm_ansible_role_openclaw_unit_path }}"
+    state: absent
+  notify: Reload systemd
+
+- name: Stat npm binary
+  ansible.builtin.stat:
+    path: /usr/bin/npm
+  register: __slm_ansible_role_openclaw_npm_stat
+
+- name: Remove openclaw package
+  when: __slm_ansible_role_openclaw_npm_stat.stat.exists
+  block:
+    - name: Read installed openclaw package
+      ansible.builtin.command: npm ls -g --depth=0 --json openclaw
+      changed_when: false
+      failed_when: __slm_ansible_role_openclaw_npm_ls.rc not in [0, 1]
+      register: __slm_ansible_role_openclaw_npm_ls
+
+    - name: Uninstall openclaw package
+      ansible.builtin.command: npm uninstall -g openclaw
+      when: >-
+        'openclaw' in ((__slm_ansible_role_openclaw_npm_ls.stdout | default('{}', true) | from_json).dependencies | default({}))
+      changed_when: true
+
+- name: Purge state directory, user and group
+  when: slm_ansible_role_openclaw_uninstall_purge | bool
+  block:
+    - name: Remove state directory
+      ansible.builtin.file:
+        path: "{{ slm_ansible_role_openclaw_state_dir }}"
+        state: absent
+
+    - name: Remove service user
+      ansible.builtin.user:
+        name: "{{ slm_ansible_role_openclaw_user }}"
+        state: absent
+        remove: true
+
+    - name: Remove service group
+      ansible.builtin.group:
+        name: "{{ slm_ansible_role_openclaw_group }}"
+        state: absent
+
+- name: Remove Node.js and the NodeSource repository
+  when: slm_ansible_role_openclaw_uninstall_nodejs | bool
+  block:
+    - name: Remove Node.js
+      ansible.builtin.apt:
+        name: nodejs
+        state: absent
+        purge: true
+
+    - name: Remove NodeSource repository
+      ansible.builtin.deb822_repository:
+        name: nodesource
+        state: absent
