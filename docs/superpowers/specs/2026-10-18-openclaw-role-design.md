@@ -223,14 +223,25 @@ molecule/uninstall-ubuntu2404-os/molecule.yml
 Switching OpenStack to `eclipse-slm/molecule_openstack` later only changes
 `create-os.yml`, `destroy-os.yml` and `requirements.yml`.
 
-## 8. Risks / open items
+## 8. Verified against openclaw 2026.10.4 (2026-10-18)
 
-- **ExecStart command** and **config validation command** must be confirmed
-  by installing the package in a test VM (`openclaw gateway --help`,
-  `openclaw config --help`). If no validation command exists, rely on exit
-  code 78 + `wait_for` failure.
-- NodeSource availability of `node_24.x` for jammy/noble is assumed; verified
-  during first converge.
-- Gateway may refuse to start without any model provider configured; if so,
-  converge supplies a minimal provider config with a dummy key referenced via
-  `${VAR}`.
+Probed locally with the pinned package:
+
+- `ExecStart`: `openclaw gateway run --port <port>` (foreground).
+- Validation: `OPENCLAW_CONFIG_PATH=<file> openclaw config validate` exits 0
+  when valid, 1 with the offending key otherwise. Used as template `validate:`.
+- The gateway enforces `gateway.mode: local` (base config sets it). Auth lives
+  under `gateway.auth.mode` / `gateway.auth.token`; base config sets
+  `mode: token`, `token: "${OPENCLAW_GATEWAY_TOKEN}"`, `bind: loopback`.
+- Starts without any model provider; ready ~17-20 s after launch, so the
+  post-start `wait_for` uses a 120 s timeout.
+- Invalid config makes `gateway run` exit 78 (matches
+  `RestartPreventExitStatus=78`).
+- The gateway does not rewrite `openclaw.json` at runtime (idempotence holds).
+- `.env` values: single quotes are literal (`'ab"c$d#e f'` round-trips);
+  double quotes do not process escapes. The env template single-quotes every
+  value, and the role rejects values containing `'` or a newline.
+- `openclaw gateway status` exits 0 once the port answers.
+
+Remaining assumption: NodeSource `node_24.x` serves jammy/noble (checked on
+first converge).
