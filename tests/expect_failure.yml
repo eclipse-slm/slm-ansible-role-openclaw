@@ -1,6 +1,7 @@
 ---
 # Included once per case by test_validation.yml: the role's input validation
-# must reject item.state/token/env with a fail_msg containing item.expect.
+# must reject the case's input with a fail_msg containing item.expect. Unset
+# keys fall back to a valid basic-auth proxy setup.
 - name: "Reset result for case: {{ item.name }}"
   ansible.builtin.set_fact:
     __case_failed: false
@@ -16,6 +17,22 @@
         slm_ansible_role_openclaw_env: "{{ item.env | default({}) }}"
         slm_ansible_role_openclaw_gateway_token: "{{ item.token | default('valid-token') }}"
         slm_ansible_role_openclaw_state: "{{ item.state | default('present') }}"
+        slm_ansible_role_openclaw_gateway_password: "{{ item.password | default('valid-password') }}"
+        slm_ansible_role_openclaw_proxy_enabled: "{{ item.proxy_enabled | default(true) }}"
+        slm_ansible_role_openclaw_proxy_auth: "{{ item.proxy_auth | default('basic') }}"
+        slm_ansible_role_openclaw_proxy_tls: "{{ item.proxy_tls | default('internal') }}"
+        slm_ansible_role_openclaw_proxy_hostname: "{{ item.hostname | default('192.0.2.10') }}"
+        slm_ansible_role_openclaw_proxy_https_port: "{{ item.https_port | default(443) }}"
+        slm_ansible_role_openclaw_proxy_tls_cert_file: "{{ item.tls_cert_file | default('') }}"
+        slm_ansible_role_openclaw_proxy_tls_key_file: "{{ item.tls_key_file | default('') }}"
+        slm_ansible_role_openclaw_proxy_acme_email: "{{ item.acme_email | default('') }}"
+        slm_ansible_role_openclaw_proxy_admin_users: "{{ item.admin_users | default([]) }}"
+        slm_ansible_role_openclaw_proxy_basic_users: "{{ item.basic_users | default([{'name': 'alice', 'password_hash': '$2b$14$abc'}]) }}"
+        slm_ansible_role_openclaw_proxy_oidc_issuer_url: "{{ (item.oidc | default({})).issuer_url | default('') }}"
+        slm_ansible_role_openclaw_proxy_oidc_client_id: "{{ (item.oidc | default({})).client_id | default('') }}"
+        slm_ansible_role_openclaw_proxy_oidc_client_secret: "{{ (item.oidc | default({})).client_secret | default('') }}"
+        slm_ansible_role_openclaw_proxy_oidc_cookie_secret: "{{ (item.oidc | default({})).cookie_secret | default('') }}"
+        slm_ansible_role_openclaw_proxy_oidc_allowed_emails: "{{ (item.oidc | default({})).allowed_emails | default([]) }}"
 
   rescue:
     - name: "Record failure for case: {{ item.name }}"

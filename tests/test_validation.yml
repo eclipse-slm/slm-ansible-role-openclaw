@@ -6,16 +6,25 @@
   connection: local
   gather_facts: true
   vars:
+    __oidc_valid:
+      issuer_url: https://idp.example.com/realms/slm
+      client_id: openclaw
+      client_secret: s3cret
+      cookie_secret: 0123456789abcdef0123456789abcdef
+      allowed_emails:
+        - alice@example.com
     __cases:
       - name: invalid state
         state: purged
         expect: slm_ansible_role_openclaw_state must be one of
 
-      - name: missing token
+      - name: missing token without proxy
+        proxy_enabled: false
         token: ''
         expect: slm_ansible_role_openclaw_gateway_token must be set
 
       - name: quote in token
+        proxy_enabled: false
         token: "ab'c"
         expect: must not contain single quotes or newlines
 
@@ -23,6 +32,72 @@
         env:
           FOO: "a\nb"
         expect: must not contain single quotes or newlines
+
+      - name: missing gateway password
+        password: ''
+        expect: slm_ansible_role_openclaw_gateway_password must be set
+
+      - name: quote in gateway password
+        password: "a'b"
+        expect: must not contain single quotes or newlines
+
+      - name: invalid proxy auth
+        proxy_auth: ldap
+        expect: slm_ansible_role_openclaw_proxy_auth must be one of
+
+      - name: invalid tls mode
+        proxy_tls: selfsigned
+        expect: slm_ansible_role_openclaw_proxy_tls must be one of
+
+      - name: port clash
+        https_port: 18789
+        expect: slm_ansible_role_openclaw_proxy_https_port must be
+
+      - name: no basic users
+        basic_users: []
+        expect: slm_ansible_role_openclaw_proxy_basic_users needs at least one
+
+      - name: colon in basic user
+        basic_users:
+          - name: 'a:b'
+            password_hash: '$2b$14$x'
+        expect: slm_ansible_role_openclaw_proxy_basic_users entries
+
+      - name: plaintext basic password
+        basic_users:
+          - name: a
+            password_hash: secret
+        expect: slm_ansible_role_openclaw_proxy_basic_users entries
+
+      - name: oidc incomplete
+        proxy_auth: oidc
+        oidc:
+          issuer_url: http://idp
+        expect: slm_ansible_role_openclaw_proxy_oidc_
+
+      - name: oidc bad cookie secret
+        proxy_auth: oidc
+        oidc: "{{ __oidc_valid | combine({'cookie_secret': 'short'}) }}"
+        expect: slm_ansible_role_openclaw_proxy_oidc_cookie_secret
+
+      - name: acme with ip
+        proxy_tls: acme
+        acme_email: a@b.c
+        expect: needs a DNS name
+
+      - name: acme without email
+        proxy_tls: acme
+        hostname: claw.example.com
+        expect: slm_ansible_role_openclaw_proxy_acme_email
+
+      - name: files without paths
+        proxy_tls: files
+        expect: slm_ansible_role_openclaw_proxy_tls_cert_file
+
+      - name: admin not allowed
+        admin_users:
+          - bob
+        expect: slm_ansible_role_openclaw_proxy_admin_users
   tasks:
     - name: Run validation cases
       ansible.builtin.include_tasks: expect_failure.yml
@@ -30,13 +105,43 @@
       loop_control:
         label: "{{ item.name }}"
 
-    - name: Accept valid input with special characters
+    - name: Accept valid basic proxy input
       ansible.builtin.include_role:
         name: "{{ playbook_dir | dirname }}"
         tasks_from: validate.yml
       vars:
         slm_ansible_role_openclaw_env:
           DUMMY_PROVIDER_KEY: not-a-real-key
+        slm_ansible_role_openclaw_gateway_password: 'molecule-t0ken"$#x y'
+        slm_ansible_role_openclaw_proxy_basic_users:
+          - name: alice
+            password_hash: '$2b$14$H81L2RzQQsxVL4VXLARLeekuBkRElmiX7tr7I.Tp7ukUKrftScMJ6'
+        slm_ansible_role_openclaw_proxy_admin_users:
+          - alice
+        slm_ansible_role_openclaw_state: present
+
+    - name: Accept valid oidc proxy input
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir | dirname }}"
+        tasks_from: validate.yml
+      vars:
+        slm_ansible_role_openclaw_gateway_password: valid-password
+        slm_ansible_role_openclaw_proxy_auth: oidc
+        slm_ansible_role_openclaw_proxy_oidc_issuer_url: "{{ __oidc_valid.issuer_url }}"
+        slm_ansible_role_openclaw_proxy_oidc_client_id: "{{ __oidc_valid.client_id }}"
+        slm_ansible_role_openclaw_proxy_oidc_client_secret: "{{ __oidc_valid.client_secret }}"
+        slm_ansible_role_openclaw_proxy_oidc_cookie_secret: "{{ __oidc_valid.cookie_secret }}"
+        slm_ansible_role_openclaw_proxy_oidc_allowed_emails: "{{ __oidc_valid.allowed_emails }}"
+        slm_ansible_role_openclaw_proxy_admin_users:
+          - alice@example.com
+        slm_ansible_role_openclaw_state: present
+
+    - name: Accept token without proxy
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir | dirname }}"
+        tasks_from: validate.yml
+      vars:
+        slm_ansible_role_openclaw_proxy_enabled: false
         slm_ansible_role_openclaw_gateway_token: 'molecule-t0ken"$#x y'
         slm_ansible_role_openclaw_state: present
 

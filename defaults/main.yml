@@ -20,8 +20,10 @@ slm_ansible_role_openclaw_env_path: "{{ slm_ansible_role_openclaw_state_dir }}/.
 
 # Gateway
 slm_ansible_role_openclaw_gateway_port: 18789
-# Required when state is present; keep it in Ansible Vault
+# Required when the proxy is disabled; keep it in Ansible Vault
 slm_ansible_role_openclaw_gateway_token: ""
+# Local CLI password, required when the proxy is enabled; keep it in Ansible Vault
+slm_ansible_role_openclaw_gateway_password: ""
 
 # Free-form openclaw.json content, merged recursively over the role's base config
 slm_ansible_role_openclaw_config: {}
@@ -38,3 +40,35 @@ slm_ansible_role_openclaw_log_level: info
 slm_ansible_role_openclaw_uninstall_purge: false
 # Uninstall: also remove nodejs and the NodeSource repository
 slm_ansible_role_openclaw_uninstall_nodejs: false
+# Uninstall: also remove the caddy package, /etc/caddy and the Caddy repository
+slm_ansible_role_openclaw_uninstall_caddy: false
+
+# Reverse proxy in front of the gateway (trusted-proxy auth, no manual device approval)
+slm_ansible_role_openclaw_proxy_enabled: true
+# basic | oidc
+slm_ansible_role_openclaw_proxy_auth: basic
+slm_ansible_role_openclaw_proxy_hostname: "{{ ansible_facts['default_ipv4']['address'] }}"
+slm_ansible_role_openclaw_proxy_https_port: 443
+# internal | acme | files
+slm_ansible_role_openclaw_proxy_tls: internal
+# tls files: certificate and key paths on the controller
+slm_ansible_role_openclaw_proxy_tls_cert_file: ""
+slm_ansible_role_openclaw_proxy_tls_key_file: ""
+# tls acme: ACME account email
+slm_ansible_role_openclaw_proxy_acme_email: ""
+# Identities granted operator.admin per session (basic user names or OIDC emails)
+slm_ansible_role_openclaw_proxy_admin_users: []
+
+# auth basic: [{name: alice, password_hash: "$2a$14$..."}], hashes from `caddy hash-password`
+slm_ansible_role_openclaw_proxy_basic_users: []
+
+# auth oidc (keep secrets in Ansible Vault)
+slm_ansible_role_openclaw_proxy_oidc_issuer_url: ""
+slm_ansible_role_openclaw_proxy_oidc_client_id: ""
+slm_ansible_role_openclaw_proxy_oidc_client_secret: ""
+# 16, 24 or 32 bytes
+slm_ansible_role_openclaw_proxy_oidc_cookie_secret: ""
+slm_ansible_role_openclaw_proxy_oidc_allowed_emails: []
+# Extra oauth2-proxy settings merged into its config file
+slm_ansible_role_openclaw_proxy_oidc_extra_config: {}
+slm_ansible_role_openclaw_oauth2_proxy_version: "7.15.5"

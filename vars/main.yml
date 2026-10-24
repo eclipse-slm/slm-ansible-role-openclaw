@@ -7,6 +7,21 @@ __slm_ansible_role_openclaw_states:
   - present
   - absent
 
+__slm_ansible_role_openclaw_proxy_auths:
+  - basic
+  - oidc
+
+__slm_ansible_role_openclaw_proxy_tls_modes:
+  - internal
+  - acme
+  - files
+
+# Identities the proxy may pass to the gateway (trustedProxy.allowUsers)
+__slm_ansible_role_openclaw_proxy_allowed_users: >-
+  {{ slm_ansible_role_openclaw_proxy_basic_users | map(attribute='name') | list
+     if slm_ansible_role_openclaw_proxy_auth == 'basic'
+     else slm_ansible_role_openclaw_proxy_oidc_allowed_emails }}
+
 __slm_ansible_role_openclaw_bin: /usr/bin/openclaw
 __slm_ansible_role_openclaw_unit_path: "/etc/systemd/system/{{ slm_ansible_role_openclaw_service_name }}.service"
 
@@ -28,4 +43,9 @@ __slm_ansible_role_openclaw_base_config:
 
 __slm_ansible_role_openclaw_effective_config: "{{ __slm_ansible_role_openclaw_base_config | combine(slm_ansible_role_openclaw_config, recursive=True) }}"
 
-__slm_ansible_role_openclaw_env_all: "{{ {'OPENCLAW_GATEWAY_TOKEN': slm_ansible_role_openclaw_gateway_token} | combine(slm_ansible_role_openclaw_env) }}"
+# OpenClaw refuses to start in trusted-proxy mode when a token is configured
+__slm_ansible_role_openclaw_env_auth: >-
+  {{ {'OPENCLAW_GATEWAY_PASSWORD': slm_ansible_role_openclaw_gateway_password}
+     if slm_ansible_role_openclaw_proxy_enabled | bool
+     else {'OPENCLAW_GATEWAY_TOKEN': slm_ansible_role_openclaw_gateway_token} }}
+__slm_ansible_role_openclaw_env_all: "{{ __slm_ansible_role_openclaw_env_auth | combine(slm_ansible_role_openclaw_env) }}"

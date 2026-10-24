@@ -24,9 +24,143 @@
   ansible.builtin.assert:
     that:
       - slm_ansible_role_openclaw_gateway_token | length > 0
-    fail_msg: slm_ansible_role_openclaw_gateway_token must be set when state is present.
+    fail_msg: slm_ansible_role_openclaw_gateway_token must be set when state is present and the proxy is disabled.
     quiet: true
-  when: slm_ansible_role_openclaw_state == 'present'
+  when:
+    - slm_ansible_role_openclaw_state == 'present'
+    - not slm_ansible_role_openclaw_proxy_enabled | bool
+
+- name: Validate proxy input
+  when:
+    - slm_ansible_role_openclaw_state == 'present'
+    - slm_ansible_role_openclaw_proxy_enabled | bool
+  block:
+    - name: Validate gateway password
+      ansible.builtin.assert:
+        that:
+          - slm_ansible_role_openclaw_gateway_password | length > 0
+        fail_msg: slm_ansible_role_openclaw_gateway_password must be set when the proxy is enabled.
+        quiet: true
+      no_log: true
+
+    - name: Validate proxy auth
+      ansible.builtin.assert:
+        that:
+          - slm_ansible_role_openclaw_proxy_auth in __slm_ansible_role_openclaw_proxy_auths
+        fail_msg: >-
+          slm_ansible_role_openclaw_proxy_auth must be one of
+          {{ __slm_ansible_role_openclaw_proxy_auths }} but was
+          {{ slm_ansible_role_openclaw_proxy_auth }}.
+        quiet: true
+
+    - name: Validate proxy tls
+      ansible.builtin.assert:
+        that:
+          - slm_ansible_role_openclaw_proxy_tls in __slm_ansible_role_openclaw_proxy_tls_modes
+        fail_msg: >-
+          slm_ansible_role_openclaw_proxy_tls must be one of
+          {{ __slm_ansible_role_openclaw_proxy_tls_modes }} but was
+          {{ slm_ansible_role_openclaw_proxy_tls }}.
+        quiet: true
+
+    - name: Validate proxy https port
+      ansible.builtin.assert:
+        that:
+          - slm_ansible_role_openclaw_proxy_https_port | string is match('^[0-9]+$')
+          - slm_ansible_role_openclaw_proxy_https_port | int >= 1
+          - slm_ansible_role_openclaw_proxy_https_port | int <= 65535
+          - slm_ansible_role_openclaw_proxy_https_port | int != slm_ansible_role_openclaw_gateway_port | int
+        fail_msg: >-
+          slm_ansible_role_openclaw_proxy_https_port must be a port number other than
+          the gateway port {{ slm_ansible_role_openclaw_gateway_port }}.
+        quiet: true
+
+    - name: Validate basic auth users
+      when: slm_ansible_role_openclaw_proxy_auth == 'basic'
+      block:
+        - name: Validate basic auth users are set
+          ansible.builtin.assert:
+            that:
+              - slm_ansible_role_openclaw_proxy_basic_users | length > 0
+            fail_msg: slm_ansible_role_openclaw_proxy_basic_users needs at least one user when proxy auth is basic.
+            quiet: true
+
+        # Caddy splits basic_auth lines on whitespace; names must not contain ':'
+        - name: Validate basic auth user entries
+          ansible.builtin.assert:
+            that:
+              - >-
+                slm_ansible_role_openclaw_proxy_basic_users | map(attribute='name', default='')
+                | map('string') | reject('match', '^[^\s:]+$') | list | length == 0
+              - >-
+                slm_ansible_role_openclaw_proxy_basic_users | map(attribute='password_hash', default='')
+                | map('string') | reject('match', '^\$2[aby]?\$') | list | length == 0
+            fail_msg: >-
+              slm_ansible_role_openclaw_proxy_basic_users entries need a name without
+              whitespace or ':' and a bcrypt password_hash (caddy hash-password).
+            quiet: true
+
+    - name: Validate oidc settings
+      when: slm_ansible_role_openclaw_proxy_auth == 'oidc'
+      block:
+        - name: Validate oidc settings are set
+          ansible.builtin.assert:
+            that:
+              - slm_ansible_role_openclaw_proxy_oidc_issuer_url is match('^https://')
+              - slm_ansible_role_openclaw_proxy_oidc_client_id | length > 0
+              - slm_ansible_role_openclaw_proxy_oidc_client_secret | length > 0
+              - slm_ansible_role_openclaw_proxy_oidc_allowed_emails | length > 0
+            fail_msg: >-
+              slm_ansible_role_openclaw_proxy_oidc_issuer_url (https), _client_id,
+              _client_secret and _allowed_emails must be set when proxy auth is oidc.
+            quiet: true
+          no_log: true
+
+        - name: Validate oidc cookie secret
+          ansible.builtin.assert:
+            that:
+              - slm_ansible_role_openclaw_proxy_oidc_cookie_secret | length in [16, 24, 32]
+            fail_msg: slm_ansible_role_openclaw_proxy_oidc_cookie_secret must be 16, 24 or 32 bytes long.
+            quiet: true
+          no_log: true
+
+    - name: Validate acme settings
+      ansible.builtin.assert:
+        that:
+          - not (slm_ansible_role_openclaw_proxy_hostname is match('^[0-9.]+$') or ':' in slm_ansible_role_openclaw_proxy_hostname)
+        fail_msg: >-
+          slm_ansible_role_openclaw_proxy_tls acme needs a DNS name in
+          slm_ansible_role_openclaw_proxy_hostname, not {{ slm_ansible_role_openclaw_proxy_hostname }}.
+        quiet: true
+      when: slm_ansible_role_openclaw_proxy_tls == 'acme'
+
+    - name: Validate acme email
+      ansible.builtin.assert:
+        that:
+          - slm_ansible_role_openclaw_proxy_acme_email | length > 0
+        fail_msg: slm_ansible_role_openclaw_proxy_acme_email must be set when proxy tls is acme.
+        quiet: true
+      when: slm_ansible_role_openclaw_proxy_tls == 'acme'
+
+    - name: Validate tls files
+      ansible.builtin.assert:
+        that:
+          - slm_ansible_role_openclaw_proxy_tls_cert_file | length > 0
+          - slm_ansible_role_openclaw_proxy_tls_key_file | length > 0
+        fail_msg: >-
+          slm_ansible_role_openclaw_proxy_tls_cert_file and _tls_key_file must be set
+          when proxy tls is files.
+        quiet: true
+      when: slm_ansible_role_openclaw_proxy_tls == 'files'
+
+    - name: Validate admin users
+      ansible.builtin.assert:
+        that:
+          - slm_ansible_role_openclaw_proxy_admin_users | difference(__slm_ansible_role_openclaw_proxy_allowed_users) | length == 0
+        fail_msg: >-
+          slm_ansible_role_openclaw_proxy_admin_users must all be allowed proxy users
+          ({{ __slm_ansible_role_openclaw_proxy_allowed_users }}).
+        quiet: true
 
 # Values are written single-quoted to the .env file, which has no escaping
 - name: Validate env values
@@ -34,8 +168,8 @@
     that:
       - __slm_ansible_role_openclaw_env_all.values() | map('string') | select('search', "['\n]") | list | length == 0
     fail_msg: >-
-      Values of slm_ansible_role_openclaw_gateway_token and slm_ansible_role_openclaw_env
-      must not contain single quotes or newlines.
+      Values of slm_ansible_role_openclaw_gateway_token, _gateway_password and
+      slm_ansible_role_openclaw_env must not contain single quotes or newlines.
     quiet: true
   when: slm_ansible_role_openclaw_state == 'present'
   no_log: true
