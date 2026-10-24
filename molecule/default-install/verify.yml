@@ -87,12 +87,17 @@
       ansible.builtin.assert:
         that:
           - __cfg.gateway.mode == 'local'
-          # bind and controlUi come from the molecule override of the base config
-          - __cfg.gateway.bind == 'lan'
-          - __cfg.gateway.controlUi.allowedOrigins == ['http://' ~ (ansible_host | default(inventory_hostname)) ~ ':18789']
+          - __cfg.gateway.bind == 'loopback'
           - __cfg.gateway.port == 18789
-          - __cfg.gateway.auth.mode == 'token'
-          - __cfg.gateway.auth.token == '${OPENCLAW_GATEWAY_TOKEN}'
+          - __cfg.gateway.publicOrigin == 'https://' ~ ansible_host
+          - __cfg.gateway.trustedProxies == ['127.0.0.1']
+          - __cfg.gateway.auth.mode == 'trusted-proxy'
+          - __cfg.gateway.auth.password == '${OPENCLAW_GATEWAY_PASSWORD}'
+          - "'token' not in __cfg.gateway.auth"
+          - "__cfg.gateway.auth.identityScopes == {'molecule': ['operator.admin']}"
+          - __cfg.gateway.auth.trustedProxy.allowUsers == ['molecule']
+          - __cfg.gateway.auth.trustedProxy.allowLoopback
+          - __cfg.gateway.auth.trustedProxy.deviceAutoApprove.enabled
           - __cfg.agents.defaults.workspace == '/var/lib/openclaw/.openclaw/workspace'
           - __cfg.agents.defaults.heartbeat.every == '2h'
           - "'molecule-t0ken' not in __text"
@@ -126,7 +131,8 @@
       ansible.builtin.assert:
         that:
           - >-
-            "OPENCLAW_GATEWAY_TOKEN='molecule-t0ken\"$#x y'" in __lines
+            "OPENCLAW_GATEWAY_PASSWORD='molecule-gw-Pa55'" in __lines
+          - __lines | select('match', 'OPENCLAW_GATEWAY_TOKEN=') | list | length == 0
           - >-
             "DUMMY_PROVIDER_KEY='not-a-real-key'" in __lines
         fail_msg: .env does not contain the expected single-quoted entries
@@ -147,15 +153,18 @@
             slm_ansible_role_openclaw_config:
               gateway:
                 bogus: 1
-            slm_ansible_role_openclaw_gateway_token: verify-token
+            slm_ansible_role_openclaw_gateway_password: verify-password
+            # Facts are not gathered in verify
+            slm_ansible_role_openclaw_proxy_hostname: "{{ ansible_host }}"
 
         - name: Record that the invalid config was accepted
           ansible.builtin.set_fact:
             __verify_bad_config_rejected: false
       rescue:
+        # Only a failed `openclaw config validate` counts, not any other error
         - name: Record that the invalid config was rejected
           ansible.builtin.set_fact:
-            __verify_bad_config_rejected: true
+            __verify_bad_config_rejected: "{{ 'Unrecognized key' in ansible_failed_result.stderr | default('') }}"
 
     - name: Checksum config after applying an invalid one
       ansible.builtin.stat:
@@ -193,13 +202,41 @@
         port: 18789
         timeout: 120
 
-    - name: Wait for gateway port from the control node
+    - name: Assert gateway port is closed from the control node
       ansible.builtin.wait_for:
-        host: "{{ ansible_host | default(inventory_hostname) }}"
+        host: "{{ ansible_host }}"
         port: 18789
-        timeout: 60
+        state: stopped
+        timeout: 10
       delegate_to: localhost
       become: false
+
+    - name: Assert caddy is running and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services['caddy.service'].state == 'running'
+          - ansible_facts.services['caddy.service'].status == 'enabled'
+        fail_msg: caddy.service is missing, not running or not enabled
+
+    - name: Request the proxy from the control node
+      ansible.builtin.uri:
+        url: "https://{{ ansible_host }}{{ item.path }}"
+        validate_certs: false
+        url_username: "{{ item.user | default(omit) }}"
+        url_password: "{{ item.password | default(omit) }}"
+        force_basic_auth: "{{ item.user is defined }}"
+        headers: "{{ item.headers | default({}) }}"
+        status_code: "{{ item.status }}"
+      delegate_to: localhost
+      become: false
+      loop:
+        - {name: no credentials, path: /, status: 401}
+        - {name: wrong password, path: /, user: molecule, password: wrong, status: 401}
+        - {name: forged identity header, path: /, headers: {X-Forwarded-User: molecule}, status: 401}
+        - {name: valid credentials, path: /, user: molecule, password: molecule-Pa55, status: 200}
+        - {name: gateway accepts proxy identity, path: /control-ui-config.json, user: molecule, password: molecule-Pa55, status: 200}
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: Read gateway status as service user
       ansible.builtin.command: /usr/bin/openclaw gateway status

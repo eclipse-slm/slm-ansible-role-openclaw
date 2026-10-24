@@ -15,3 +15,17 @@
 #     - name: Apply role under test with previous release
 #       ansible.builtin.include_role:
 #         name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+
+# Start from a token install so converge exercises the switch to the reverse proxy
+- name: PREPARE | INSTALL OPENCLAW WITHOUT PROXY
+  hosts: all
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../default/vars.yml
+  vars:
+    slm_ansible_role_openclaw_proxy_enabled: false
+  tasks:
+    - name: Apply role under test without proxy
+      ansible.builtin.include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"

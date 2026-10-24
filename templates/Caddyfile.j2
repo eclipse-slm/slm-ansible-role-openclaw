@@ -1,0 +1,26 @@
+# Managed by Ansible - manual changes will be overwritten
+{% if slm_ansible_role_openclaw_proxy_tls == 'acme' %}
+{
+	email {{ slm_ansible_role_openclaw_proxy_acme_email }}
+}
+
+{% endif %}
+{{ __slm_ansible_role_openclaw_proxy_origin }} {
+{% if slm_ansible_role_openclaw_proxy_tls == 'internal' %}
+	tls internal
+{% elif slm_ansible_role_openclaw_proxy_tls == 'files' %}
+	tls {{ __slm_ansible_role_openclaw_caddy_cert_dir }}/openclaw.crt {{ __slm_ansible_role_openclaw_caddy_cert_dir }}/openclaw.key
+{% endif %}
+
+{% if slm_ansible_role_openclaw_proxy_auth == 'basic' %}
+	basic_auth {
+{% for user in slm_ansible_role_openclaw_proxy_basic_users %}
+		{{ user.name }} {{ user.password_hash }}
+{% endfor %}
+	}
+	# Overwrites any identity header sent by the client
+	reverse_proxy 127.0.0.1:{{ slm_ansible_role_openclaw_gateway_port }} {
+		header_up X-Forwarded-User {http.auth.user.id}
+	}
+{% endif %}
+}

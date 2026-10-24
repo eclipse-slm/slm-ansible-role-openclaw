@@ -25,6 +25,10 @@ __slm_ansible_role_openclaw_proxy_allowed_users: >-
 __slm_ansible_role_openclaw_bin: /usr/bin/openclaw
 __slm_ansible_role_openclaw_unit_path: "/etc/systemd/system/{{ slm_ansible_role_openclaw_service_name }}.service"
 
+__slm_ansible_role_openclaw_caddy_uri: https://dl.cloudsmith.io/public/caddy/stable/deb/debian
+__slm_ansible_role_openclaw_caddy_key: https://dl.cloudsmith.io/public/caddy/stable/gpg.key
+__slm_ansible_role_openclaw_caddy_cert_dir: /etc/caddy/certs
+
 __slm_ansible_role_openclaw_nodesource_uri: "https://deb.nodesource.com/node_{{ slm_ansible_role_openclaw_nodejs_major }}.x"
 __slm_ansible_role_openclaw_nodesource_key: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
 

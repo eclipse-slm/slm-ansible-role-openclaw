@@ -1,0 +1,3 @@
+---
+- name: Include Caddy tasks
+  ansible.builtin.include_tasks: proxy/caddy.yml

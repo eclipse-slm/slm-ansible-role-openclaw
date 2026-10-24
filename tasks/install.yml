@@ -13,3 +13,7 @@
 
 - name: Include service tasks
   ansible.builtin.include_tasks: install/service.yml
+
+- name: Include reverse proxy tasks
+  ansible.builtin.include_tasks: install/proxy.yml
+  when: slm_ansible_role_openclaw_proxy_enabled | bool

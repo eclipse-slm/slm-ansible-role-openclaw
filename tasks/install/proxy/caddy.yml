@@ -1,0 +1,65 @@
+---
+- name: Add Caddy repository
+  ansible.builtin.deb822_repository:
+    name: caddy-stable
+    types: deb
+    uris: "{{ __slm_ansible_role_openclaw_caddy_uri }}"
+    suites: any-version
+    components: main
+    signed_by: "{{ __slm_ansible_role_openclaw_caddy_key }}"
+    install_python_debian: true
+    state: present
+  register: __slm_ansible_role_openclaw_caddy_repo
+
+- name: Install Caddy
+  ansible.builtin.apt:
+    name: caddy
+    state: present
+    update_cache: "{{ __slm_ansible_role_openclaw_caddy_repo is changed }}"
+
+- name: Install TLS certificate and key
+  when: slm_ansible_role_openclaw_proxy_tls == 'files'
+  block:
+    - name: Create certificate directory
+      ansible.builtin.file:
+        path: "{{ __slm_ansible_role_openclaw_caddy_cert_dir }}"
+        state: directory
+        owner: root
+        group: caddy
+        mode: "0750"
+
+    - name: Copy TLS certificate
+      ansible.builtin.copy:
+        src: "{{ slm_ansible_role_openclaw_proxy_tls_cert_file }}"
+        dest: "{{ __slm_ansible_role_openclaw_caddy_cert_dir }}/openclaw.crt"
+        owner: root
+        group: caddy
+        mode: "0644"
+      notify: Reload caddy
+
+    - name: Copy TLS key
+      ansible.builtin.copy:
+        src: "{{ slm_ansible_role_openclaw_proxy_tls_key_file }}"
+        dest: "{{ __slm_ansible_role_openclaw_caddy_cert_dir }}/openclaw.key"
+        owner: root
+        group: caddy
+        mode: "0640"
+      no_log: true
+      notify: Reload caddy
+
+# The role owns the whole Caddyfile; caddy validate rejects it before it is live
+- name: Render Caddyfile
+  ansible.builtin.template:
+    src: Caddyfile.j2
+    dest: /etc/caddy/Caddyfile
+    owner: root
+    group: caddy
+    mode: "0644"
+    validate: caddy validate --adapter caddyfile --config %s
+  notify: Reload caddy
+
+- name: Enable and start Caddy
+  ansible.builtin.systemd_service:
+    name: caddy
+    enabled: true
+    state: started
