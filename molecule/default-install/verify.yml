@@ -87,7 +87,9 @@
       ansible.builtin.assert:
         that:
           - __cfg.gateway.mode == 'local'
-          - __cfg.gateway.bind == 'loopback'
+          # bind and controlUi come from the molecule override of the base config
+          - __cfg.gateway.bind == 'lan'
+          - __cfg.gateway.controlUi.allowedOrigins == ['http://' ~ (ansible_host | default(inventory_hostname)) ~ ':18789']
           - __cfg.gateway.port == 18789
           - __cfg.gateway.auth.mode == 'token'
           - __cfg.gateway.auth.token == '${OPENCLAW_GATEWAY_TOKEN}'
@@ -190,6 +192,14 @@
         host: 127.0.0.1
         port: 18789
         timeout: 120
+
+    - name: Wait for gateway port from the control node
+      ansible.builtin.wait_for:
+        host: "{{ ansible_host | default(inventory_hostname) }}"
+        port: 18789
+        timeout: 60
+      delegate_to: localhost
+      become: false
 
     - name: Read gateway status as service user
       ansible.builtin.command: /usr/bin/openclaw gateway status

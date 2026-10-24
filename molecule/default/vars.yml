@@ -2,6 +2,12 @@
 # Role input shared by all converge and prepare playbooks. The token contains
 # characters that must survive the .env file literally.
 slm_ansible_role_openclaw_config:
+  # Listen beyond loopback so verify can reach the gateway from the control node
+  gateway:
+    bind: lan
+    controlUi:
+      allowedOrigins:
+        - "http://{{ ansible_host | default(inventory_hostname) }}:18789"
   agents:
     defaults:
       heartbeat:
