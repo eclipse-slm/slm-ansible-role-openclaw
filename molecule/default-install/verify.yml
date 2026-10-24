@@ -100,6 +100,10 @@
           - __cfg.gateway.auth.trustedProxy.deviceAutoApprove.enabled
           - __cfg.agents.defaults.workspace == '/var/lib/openclaw/.openclaw/workspace'
           - __cfg.agents.defaults.heartbeat.every == '2h'
+          - __cfg.models.providers['fake-llm'].baseUrl == 'http://127.0.0.1:9/v1'
+          - __cfg.models.providers['fake-llm'].apiKey == '${OPENCLAW_PROVIDER_FAKE_LLM_API_KEY}'
+          - __cfg.agents.defaults.model.primary == 'fake-llm/fake-model'
+          - "'fake-llm-k3y' not in __text"
           - "'molecule-t0ken' not in __text"
         fail_msg: "Unexpected openclaw.json: {{ __text }}"
 
@@ -135,6 +139,8 @@
           - __lines | select('match', 'OPENCLAW_GATEWAY_TOKEN=') | list | length == 0
           - >-
             "DUMMY_PROVIDER_KEY='not-a-real-key'" in __lines
+          - >-
+            "OPENCLAW_PROVIDER_FAKE_LLM_API_KEY='fake-llm-k3y'" in __lines
         fail_msg: .env does not contain the expected single-quoted entries
       no_log: true
 
@@ -245,7 +251,7 @@
         url: "https://{{ ansible_host }}/tools/invoke"
         method: POST
         body_format: json
-        body: {tool: gateway, action: config.get, args: {}}
+        body: {tool: gateway, action: config.get, args: {path: gateway.mode}}
         validate_certs: false
         url_username: "{{ item.user }}"
         url_password: "{{ item.password }}"
@@ -260,6 +266,22 @@
         - {user: viewer, password: viewer-Pa55, headers: {X-Openclaw-Scopes: operator.admin}, status: [403, 404]}
       loop_control:
         label: "{{ item.user }} {{ item.headers | default({}) }}"
+
+    - name: List models as service user
+      ansible.builtin.command: /usr/bin/openclaw models list --json
+      become: true
+      become_user: openclaw
+      environment:
+        OPENCLAW_CONFIG_PATH: /var/lib/openclaw/.openclaw/openclaw.json
+        OPENCLAW_STATE_DIR: /var/lib/openclaw/.openclaw
+      changed_when: false
+      register: __verify_models
+
+    - name: Assert the OpenAI-compatible model is listed
+      ansible.builtin.assert:
+        that:
+          - "'fake-llm/fake-model' in __verify_models.stdout"
+        fail_msg: "fake-llm/fake-model missing from: {{ __verify_models.stdout }}"
 
     - name: Read gateway status as service user
       ansible.builtin.command: /usr/bin/openclaw gateway status

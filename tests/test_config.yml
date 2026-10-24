@@ -87,3 +87,42 @@
         slm_ansible_role_openclaw_proxy_admin_users: []
         __checks:
           - "'identityScopes' not in __c.gateway.auth"
+
+    - name: Openai providers
+      ansible.builtin.include_tasks: assert_config.yml
+      vars:
+        __case: openai providers
+        slm_ansible_role_openclaw_openai_providers:
+          - id: vllm-gpu
+            base_url: https://vllm.example.com/v1
+            api_key: secret-key
+            api: openai-responses
+            models:
+              - {id: qwen3-32b, name: Qwen3 32B, context_window: 131072, max_tokens: 8192, input: [text, image]}
+          - id: ollama
+            base_url: http://127.0.0.1:11434/v1
+            models:
+              - {id: llama3.1}
+        slm_ansible_role_openclaw_default_model: vllm-gpu/qwen3-32b
+        __checks:
+          - >-
+            __c.models.providers['vllm-gpu'] == {'baseUrl': 'https://vllm.example.com/v1',
+            'api': 'openai-responses', 'apiKey': '${OPENCLAW_PROVIDER_VLLM_GPU_API_KEY}',
+            'models': [{'id': 'qwen3-32b', 'name': 'Qwen3 32B', 'contextWindow': 131072,
+            'maxTokens': 8192, 'input': ['text', 'image']}]}
+          - >-
+            __c.models.providers.ollama == {'baseUrl': 'http://127.0.0.1:11434/v1',
+            'api': 'openai-completions', 'apiKey': 'no-key', 'models': [{'id': 'llama3.1'}]}
+          - "__c.agents.defaults.model.primary == 'vllm-gpu/qwen3-32b'"
+          - "__c.agents.defaults.workspace is defined"
+          - "__e.OPENCLAW_PROVIDER_VLLM_GPU_API_KEY == 'secret-key'"
+          - "'OPENCLAW_PROVIDER_OLLAMA_API_KEY' not in __e"
+          - "'secret-key' not in __c | to_json"
+
+    - name: No openai providers
+      ansible.builtin.include_tasks: assert_config.yml
+      vars:
+        __case: no openai providers
+        __checks:
+          - "'models' not in __c"
+          - "'model' not in __c.agents.defaults"

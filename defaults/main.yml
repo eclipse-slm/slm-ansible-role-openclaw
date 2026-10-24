@@ -25,6 +25,13 @@ slm_ansible_role_openclaw_gateway_token: ""
 # Local CLI password, required when the proxy is enabled; keep it in Ansible Vault
 slm_ansible_role_openclaw_gateway_password: ""
 
+# OpenAI-compatible model endpoints (vLLM, LiteLLM, Ollama, LM Studio, ...):
+# [{id, base_url, api_key (optional, vault it), api (optional: openai-completions | openai-responses),
+#   models: [{id, name, context_window, max_tokens, input}]}]; only id and models[].id are required
+slm_ansible_role_openclaw_openai_providers: []
+# Default model as "<provider id>/<model id>"; empty leaves OpenClaw's choice
+slm_ansible_role_openclaw_default_model: ""
+
 # Free-form openclaw.json content, merged recursively over the role's base config
 slm_ansible_role_openclaw_config: {}
 

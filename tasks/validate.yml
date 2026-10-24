@@ -162,6 +162,77 @@
           ({{ __slm_ansible_role_openclaw_proxy_allowed_users }}).
         quiet: true
 
+- name: Validate openai providers
+  when:
+    - slm_ansible_role_openclaw_state == 'present'
+    - slm_ansible_role_openclaw_openai_providers | length > 0
+  vars:
+    __providers: "{{ slm_ansible_role_openclaw_openai_providers }}"
+    __ids: "{{ __providers | map(attribute='id', default='') | map('string') | list }}"
+  block:
+    - name: Validate openai provider ids
+      ansible.builtin.assert:
+        that:
+          - __ids | reject('match', '^[a-z0-9][a-z0-9-]*$') | list | length == 0
+          - __ids | unique | length == __ids | length
+        fail_msg: >-
+          slm_ansible_role_openclaw_openai_providers ids must be unique and match
+          ^[a-z0-9][a-z0-9-]*$, got {{ __ids }}.
+        quiet: true
+
+    - name: Validate openai provider base urls
+      ansible.builtin.assert:
+        that:
+          - >-
+            __providers | map(attribute='base_url', default='') | map('string')
+            | reject('match', '^https?://[^\s]+$') | list | length == 0
+        fail_msg: slm_ansible_role_openclaw_openai_providers base_url must start with http:// or https://.
+        quiet: true
+
+    - name: Validate openai provider models
+      ansible.builtin.assert:
+        that:
+          - __providers | map(attribute='models', default=[]) | select('equalto', []) | list | length == 0
+          - >-
+            __providers | map(attribute='models', default=[])
+            | map('map', attribute='id', default='') | map('list')
+            | map('unique') | map('length') | list
+            == __providers | map(attribute='models', default=[]) | map('length') | list
+          - >-
+            __providers | map(attribute='models', default=[]) | flatten
+            | map(attribute='id', default='') | map('string') | select('equalto', '') | list | length == 0
+        fail_msg: >-
+          slm_ansible_role_openclaw_openai_providers models must list at least one model
+          per provider, each with a unique id.
+        quiet: true
+
+    - name: Validate openai provider api
+      ansible.builtin.assert:
+        that:
+          - >-
+            __providers | map(attribute='api', default='openai-completions')
+            | reject('in', __slm_ansible_role_openclaw_openai_apis) | list | length == 0
+        fail_msg: >-
+          slm_ansible_role_openclaw_openai_providers api must be one of
+          {{ __slm_ansible_role_openclaw_openai_apis }}.
+        quiet: true
+
+- name: Validate default model
+  vars:
+    __refs: >-
+      {{ slm_ansible_role_openclaw_openai_providers
+         | subelements('models') | map('map', attribute='id') | map('join', '/') | list }}
+  ansible.builtin.assert:
+    that:
+      - slm_ansible_role_openclaw_default_model in __refs
+    fail_msg: >-
+      slm_ansible_role_openclaw_default_model must be one of {{ __refs }},
+      got {{ slm_ansible_role_openclaw_default_model }}.
+    quiet: true
+  when:
+    - slm_ansible_role_openclaw_state == 'present'
+    - slm_ansible_role_openclaw_default_model | length > 0
+
 # Values are written single-quoted to the .env file, which has no escaping
 - name: Validate env values
   ansible.builtin.assert:

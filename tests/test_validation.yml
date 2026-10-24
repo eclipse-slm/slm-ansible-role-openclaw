@@ -98,6 +98,48 @@
         admin_users:
           - bob
         expect: slm_ansible_role_openclaw_proxy_admin_users
+
+      - name: invalid provider id
+        providers:
+          - {id: My_LLM, base_url: 'http://llm:8000/v1', models: [{id: m}]}
+        expect: slm_ansible_role_openclaw_openai_providers ids must
+
+      - name: duplicate provider id
+        providers:
+          - {id: llm, base_url: 'http://a:8000/v1', models: [{id: m}]}
+          - {id: llm, base_url: 'http://b:8000/v1', models: [{id: m}]}
+        expect: slm_ansible_role_openclaw_openai_providers ids must
+
+      - name: provider base url without scheme
+        providers:
+          - {id: llm, base_url: 'llm:8000/v1', models: [{id: m}]}
+        expect: slm_ansible_role_openclaw_openai_providers base_url
+
+      - name: provider without models
+        providers:
+          - {id: llm, base_url: 'http://llm:8000/v1', models: []}
+        expect: slm_ansible_role_openclaw_openai_providers models
+
+      - name: duplicate model id
+        providers:
+          - {id: llm, base_url: 'http://llm:8000/v1', models: [{id: m}, {id: m}]}
+        expect: slm_ansible_role_openclaw_openai_providers models
+
+      - name: invalid provider api
+        providers:
+          - {id: llm, base_url: 'http://llm:8000/v1', api: anthropic-messages, models: [{id: m}]}
+        expect: slm_ansible_role_openclaw_openai_providers api
+
+      - name: unknown default model
+        providers:
+          - {id: llm, base_url: 'http://llm:8000/v1', models: [{id: m}]}
+        default_model: llm/other
+        expect: slm_ansible_role_openclaw_default_model
+
+      - name: quote in provider api key
+        providers:
+          - {id: llm, base_url: 'http://llm:8000/v1', api_key: "a'b", models: [{id: m}]}
+        expect: must not contain single quotes or newlines
   tasks:
     - name: Run validation cases
       ansible.builtin.include_tasks: expect_failure.yml
@@ -134,6 +176,29 @@
         slm_ansible_role_openclaw_proxy_oidc_allowed_emails: "{{ __oidc_valid.allowed_emails }}"
         slm_ansible_role_openclaw_proxy_admin_users:
           - alice@example.com
+        slm_ansible_role_openclaw_state: present
+
+    - name: Accept valid openai providers
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir | dirname }}"
+        tasks_from: validate.yml
+      vars:
+        slm_ansible_role_openclaw_gateway_password: valid-password
+        slm_ansible_role_openclaw_proxy_basic_users:
+          - name: alice
+            password_hash: '$2b$14$H81L2RzQQsxVL4VXLARLeekuBkRElmiX7tr7I.Tp7ukUKrftScMJ6'
+        slm_ansible_role_openclaw_openai_providers:
+          - id: vllm
+            base_url: https://vllm.example.com/v1
+            api_key: 'k"$#ey'
+            api: openai-responses
+            models:
+              - {id: qwen3-32b, name: Qwen3 32B, context_window: 131072, max_tokens: 8192, input: [text]}
+          - id: ollama
+            base_url: http://127.0.0.1:11434/v1
+            models:
+              - {id: llama3.1}
+        slm_ansible_role_openclaw_default_model: vllm/qwen3-32b
         slm_ansible_role_openclaw_state: present
 
     - name: Accept token without proxy

@@ -128,11 +128,56 @@ __slm_ansible_role_openclaw_base_config: >-
      if slm_ansible_role_openclaw_proxy_enabled | bool
      else __slm_ansible_role_openclaw_token_config }}
 
-__slm_ansible_role_openclaw_effective_config: "{{ __slm_ansible_role_openclaw_base_config | combine(slm_ansible_role_openclaw_config, recursive=True) }}"
+__slm_ansible_role_openclaw_openai_apis:
+  - openai-completions
+  - openai-responses
+
+# API keys stay ${VAR} references; local servers without auth get a fixed placeholder
+__slm_ansible_role_openclaw_openai_providers_json: >-
+  {%- set out = {} -%}
+  {%- for p in slm_ansible_role_openclaw_openai_providers -%}
+  {%- set models = [] -%}
+  {%- for m in p.models -%}
+  {%- set e = {'id': m.id} -%}
+  {%- if m.name is defined -%}{%- set _ = e.update({'name': m.name}) -%}{%- endif -%}
+  {%- if m.context_window is defined -%}{%- set _ = e.update({'contextWindow': m.context_window | int}) -%}{%- endif -%}
+  {%- if m.max_tokens is defined -%}{%- set _ = e.update({'maxTokens': m.max_tokens | int}) -%}{%- endif -%}
+  {%- if m.input is defined -%}{%- set _ = e.update({'input': m.input}) -%}{%- endif -%}
+  {%- set _ = models.append(e) -%}
+  {%- endfor -%}
+  {%- set _ = out.update({p.id: {
+        'baseUrl': p.base_url,
+        'api': p.api | default('openai-completions'),
+        'apiKey': ('${' ~ __slm_ansible_role_openclaw_openai_key_var_prefix ~ (p.id | upper | replace('-', '_')) ~ '_API_KEY}')
+                  if p.api_key | default('') | length > 0 else 'no-key',
+        'models': models}}) -%}
+  {%- endfor -%}
+  {{ out | to_json }}
+__slm_ansible_role_openclaw_openai_key_var_prefix: OPENCLAW_PROVIDER_
+
+__slm_ansible_role_openclaw_models_config: >-
+  {{ ({'models': {'providers': __slm_ansible_role_openclaw_openai_providers_json | from_json}}
+      if slm_ansible_role_openclaw_openai_providers | length > 0 else {})
+     | combine({'agents': {'defaults': {'model': {'primary': slm_ansible_role_openclaw_default_model}}}}
+               if slm_ansible_role_openclaw_default_model | length > 0 else {}) }}
+
+__slm_ansible_role_openclaw_effective_config: >-
+  {{ __slm_ansible_role_openclaw_base_config
+     | combine(__slm_ansible_role_openclaw_models_config, recursive=True)
+     | combine(slm_ansible_role_openclaw_config, recursive=True) }}
 
 # OpenClaw refuses to start in trusted-proxy mode when a token is configured
 __slm_ansible_role_openclaw_env_auth: >-
   {{ {'OPENCLAW_GATEWAY_PASSWORD': slm_ansible_role_openclaw_gateway_password}
      if slm_ansible_role_openclaw_proxy_enabled | bool
      else {'OPENCLAW_GATEWAY_TOKEN': slm_ansible_role_openclaw_gateway_token} }}
-__slm_ansible_role_openclaw_env_all: "{{ __slm_ansible_role_openclaw_env_auth | combine(slm_ansible_role_openclaw_env) }}"
+__slm_ansible_role_openclaw_env_providers_json: >-
+  {%- set out = {} -%}
+  {%- for p in slm_ansible_role_openclaw_openai_providers if p.api_key | default('') | length > 0 -%}
+  {%- set _ = out.update({__slm_ansible_role_openclaw_openai_key_var_prefix ~ (p.id | upper | replace('-', '_')) ~ '_API_KEY': p.api_key}) -%}
+  {%- endfor -%}
+  {{ out | to_json }}
+__slm_ansible_role_openclaw_env_all: >-
+  {{ __slm_ansible_role_openclaw_env_auth
+     | combine(__slm_ansible_role_openclaw_env_providers_json | from_json)
+     | combine(slm_ansible_role_openclaw_env) }}

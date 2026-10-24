@@ -33,6 +33,8 @@
         slm_ansible_role_openclaw_proxy_oidc_client_secret: "{{ (item.oidc | default({})).client_secret | default('') }}"
         slm_ansible_role_openclaw_proxy_oidc_cookie_secret: "{{ (item.oidc | default({})).cookie_secret | default('') }}"
         slm_ansible_role_openclaw_proxy_oidc_allowed_emails: "{{ (item.oidc | default({})).allowed_emails | default([]) }}"
+        slm_ansible_role_openclaw_openai_providers: "{{ item.providers | default([]) }}"
+        slm_ansible_role_openclaw_default_model: "{{ item.default_model | default('') }}"
 
   rescue:
     - name: "Record failure for case: {{ item.name }}"

@@ -23,3 +23,14 @@ slm_ansible_role_openclaw_proxy_basic_users:
     password_hash: '$2b$14$qe1Ur3i4/6.NfOcbEkqWJeTj/SlEkWZDRYSOtpywg6QJYkiSwgV6q'
 slm_ansible_role_openclaw_proxy_admin_users:
   - molecule
+# Nothing listens on port 9: proves openclaw accepts the provider block, not the endpoint
+slm_ansible_role_openclaw_openai_providers:
+  - id: fake-llm
+    base_url: http://127.0.0.1:9/v1
+    api_key: fake-llm-k3y
+    models:
+      - id: fake-model
+        name: Fake Model
+        context_window: 32768
+        max_tokens: 4096
+slm_ansible_role_openclaw_default_model: fake-llm/fake-model

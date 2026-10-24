@@ -50,6 +50,8 @@ Node.js, Caddy and their repositories.
 | `slm_ansible_role_openclaw_gateway_port` | `18789` | Gateway WebSocket port. |
 | `slm_ansible_role_openclaw_gateway_token` | `""` | Gateway auth token. **Required** for `present` when the proxy is disabled. Keep it in Ansible Vault. |
 | `slm_ansible_role_openclaw_gateway_password` | `""` | Password for local CLI calls on the host. **Required** for `present` when the proxy is enabled. Keep it in Ansible Vault. |
+| `slm_ansible_role_openclaw_openai_providers` | `[]` | OpenAI-compatible model endpoints, see [OpenAI-compatible endpoints](#openai-compatible-endpoints). |
+| `slm_ansible_role_openclaw_default_model` | `""` | Default model as `<provider id>/<model id>`; empty leaves OpenClaw's choice. |
 | `slm_ansible_role_openclaw_config` | `{}` | Free-form `openclaw.json` content, merged recursively over the base config (below). |
 | `slm_ansible_role_openclaw_env` | `{}` | Extra variables for the `.env` file, e.g. provider API keys. |
 | `slm_ansible_role_openclaw_service_name` | `openclaw-gateway` | systemd unit name. |
@@ -104,6 +106,37 @@ runtime, so they never appear in `openclaw.json` or the Ansible output.
 Values are written single-quoted and taken literally, so characters such as
 `"`, `$`, `#` and spaces are fine. Values must not contain a single quote or a
 newline; the role rejects them before changing anything.
+
+## OpenAI-compatible endpoints
+
+Self-hosted or proxied models (vLLM, LiteLLM, Ollama, LM Studio and other
+servers with an OpenAI-style `/v1` API) are added as OpenClaw custom providers:
+
+```yaml
+slm_ansible_role_openclaw_openai_providers:
+  - id: vllm                          # model refs become "vllm/<model id>"
+    base_url: http://10.0.0.5:8000/v1
+    api_key: "{{ vault_vllm_api_key }}"  # optional
+    api: openai-completions           # optional; openai-responses if the server has /v1/responses
+    models:
+      - id: qwen3-32b                 # required
+        name: Qwen3 32B               # optional
+        context_window: 131072        # optional
+        max_tokens: 8192              # optional
+        input: [text]                 # optional; [text, image] for vision models
+  - id: ollama
+    base_url: http://127.0.0.1:11434/v1
+    models:
+      - id: llama3.1
+slm_ansible_role_openclaw_default_model: vllm/qwen3-32b
+```
+
+Each provider becomes `models.providers.<id>` in `openclaw.json`. The API key
+is written to `.env` as `OPENCLAW_PROVIDER_<ID>_API_KEY` (upper case, `-` →
+`_`) and referenced as `${...}`; providers without `api_key` get the
+placeholder `no-key`. Other provider fields (headers, TLS, `compat`, ...) can
+be added through `slm_ansible_role_openclaw_config`, which is merged over
+these entries. Provider ids must match `^[a-z0-9][a-z0-9-]*$`.
 
 ## Reverse proxy
 
@@ -231,7 +264,7 @@ available and needs the usual `OS_*` environment variables.
 
 | Scenario | What it tests |
 |---|---|
-| `install-ubuntu2204`, `install-ubuntu2404` | Prepare installs without the proxy (token auth), converge switches to the proxy (basic auth, TLS internal); verify checks user, permissions, config, secrets, rejection of an invalid config, running services, closed gateway port, proxy responses (401/200, forged identity header), auto-approval of a new browser device and the gateway probe; idempotence. |
+| `install-ubuntu2204`, `install-ubuntu2404` | Prepare installs without the proxy (token auth), converge switches to the proxy (basic auth, TLS internal); verify checks user, permissions, config (including an OpenAI-compatible provider and default model), secrets, rejection of an invalid config, running services, closed gateway port, proxy responses (401/200, forged identity header), auto-approval of a new browser device and the gateway probe; idempotence. |
 | `install-oidc-ubuntu2404` | Proxy with OIDC against a fake IdP (config level): oauth2-proxy and Caddy running, private config, pinned version, redirect to sign-in for unauthenticated or forged requests; idempotence. |
 | `uninstall-ubuntu2204`, `uninstall-ubuntu2404` | Install with OIDC and TLS files, then `absent` with purge and Node.js removal; verify the gateway, oauth2-proxy and copied certificates are gone and Caddy is kept; idempotence. |
 
