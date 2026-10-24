@@ -12,12 +12,15 @@ What the role does with `slm_ansible_role_openclaw_state: present`:
 3. Installs the pinned npm package `openclaw` globally and upgrades it when the version changes.
 4. Renders `openclaw.json` from Ansible variables, validated with
    `openclaw config validate` **before** it replaces the live file, and a
-   `.env` file with the gateway token and other secrets.
+   `.env` file with the gateway password (or token) and other secrets.
 5. Installs and starts `openclaw-gateway.service` and waits until the gateway port is open.
+6. Installs Caddy as a reverse proxy in front of the gateway (on by default,
+   see [Reverse proxy](#reverse-proxy)), so browsers can use the Control UI
+   without `openclaw devices approve`.
 
 With `slm_ansible_role_openclaw_state: absent` it stops and removes the
-service and package, and optionally the state directory, user, Node.js and
-the NodeSource repository.
+service, package and oauth2-proxy, and optionally the state directory, user,
+Node.js, Caddy and their repositories.
 
 > Ansible owns `openclaw.json`. Changes made at runtime via the CLI or the
 > Control UI are overwritten on the next role run. Put every setting into
@@ -27,7 +30,8 @@ the NodeSource repository.
 
 - Target: Ubuntu 22.04 or 24.04 with systemd.
 - Controller: ansible-core 2.15+.
-- Internet access from the target to `deb.nodesource.com` and the npm registry.
+- Internet access from the target to `deb.nodesource.com`, the npm registry,
+  `dl.cloudsmith.io` (Caddy) and, for OIDC, `github.com` (oauth2-proxy release).
 
 ## Role variables
 
@@ -44,7 +48,8 @@ the NodeSource repository.
 | `slm_ansible_role_openclaw_config_path` | `<state_dir>/openclaw.json` | Config file (`OPENCLAW_CONFIG_PATH`), mode 0600. |
 | `slm_ansible_role_openclaw_env_path` | `<state_dir>/.env` | Secret env file, mode 0600. |
 | `slm_ansible_role_openclaw_gateway_port` | `18789` | Gateway WebSocket port. |
-| `slm_ansible_role_openclaw_gateway_token` | `""` | Gateway auth token. **Required** for `present`. Keep it in Ansible Vault. |
+| `slm_ansible_role_openclaw_gateway_token` | `""` | Gateway auth token. **Required** for `present` when the proxy is disabled. Keep it in Ansible Vault. |
+| `slm_ansible_role_openclaw_gateway_password` | `""` | Password for local CLI calls on the host. **Required** for `present` when the proxy is enabled. Keep it in Ansible Vault. |
 | `slm_ansible_role_openclaw_config` | `{}` | Free-form `openclaw.json` content, merged recursively over the base config (below). |
 | `slm_ansible_role_openclaw_env` | `{}` | Extra variables for the `.env` file, e.g. provider API keys. |
 | `slm_ansible_role_openclaw_service_name` | `openclaw-gateway` | systemd unit name. |
@@ -52,8 +57,27 @@ the NodeSource repository.
 | `slm_ansible_role_openclaw_log_level` | `info` | `OPENCLAW_LOG_LEVEL` for the service. |
 | `slm_ansible_role_openclaw_uninstall_purge` | `false` | With `absent`: also remove state directory, user and group. |
 | `slm_ansible_role_openclaw_uninstall_nodejs` | `false` | With `absent`: also remove Node.js and the NodeSource repository. |
+| `slm_ansible_role_openclaw_uninstall_caddy` | `false` | With `absent`: also remove the `caddy` package, `/etc/caddy` and the Caddy repository. |
+| `slm_ansible_role_openclaw_proxy_enabled` | `true` | Install the reverse proxy and switch the gateway to trusted-proxy auth. |
+| `slm_ansible_role_openclaw_proxy_auth` | `basic` | How the proxy logs users in: `basic` (Caddy basic auth) or `oidc` (oauth2-proxy). |
+| `slm_ansible_role_openclaw_proxy_hostname` | default IPv4 address | Host name or IP in the proxy URL `https://<hostname>`. |
+| `slm_ansible_role_openclaw_proxy_https_port` | `443` | HTTPS port of the proxy. |
+| `slm_ansible_role_openclaw_proxy_tls` | `internal` | `internal` (Caddy's own CA, browser warning), `acme` (Let's Encrypt, needs a public DNS name) or `files`. |
+| `slm_ansible_role_openclaw_proxy_tls_cert_file` | `""` | With `tls: files`: certificate path on the controller. |
+| `slm_ansible_role_openclaw_proxy_tls_key_file` | `""` | With `tls: files`: key path on the controller. |
+| `slm_ansible_role_openclaw_proxy_acme_email` | `""` | With `tls: acme`: ACME account email. |
+| `slm_ansible_role_openclaw_proxy_admin_users` | `[]` | Users that get `operator.admin` per session (basic user names or OIDC emails). Must be allowed users. |
+| `slm_ansible_role_openclaw_proxy_basic_users` | `[]` | With `auth: basic`: `[{name, password_hash}]`, bcrypt hashes from `caddy hash-password`. **At least one required.** |
+| `slm_ansible_role_openclaw_proxy_oidc_issuer_url` | `""` | With `auth: oidc`: issuer URL (`https://`). |
+| `slm_ansible_role_openclaw_proxy_oidc_client_id` | `""` | With `auth: oidc`: client ID. |
+| `slm_ansible_role_openclaw_proxy_oidc_client_secret` | `""` | With `auth: oidc`: client secret. Keep it in Ansible Vault. |
+| `slm_ansible_role_openclaw_proxy_oidc_cookie_secret` | `""` | With `auth: oidc`: oauth2-proxy cookie secret, 16, 24 or 32 bytes. Keep it in Ansible Vault. |
+| `slm_ansible_role_openclaw_proxy_oidc_allowed_emails` | `[]` | With `auth: oidc`: emails allowed to log in. **At least one required.** |
+| `slm_ansible_role_openclaw_proxy_oidc_extra_config` | `{}` | Extra oauth2-proxy settings merged into its config file. |
+| `slm_ansible_role_openclaw_oauth2_proxy_version` | `7.15.5` | oauth2-proxy release; the download is checked against the release's sha256 file. |
 
-Base config that `slm_ansible_role_openclaw_config` is merged over:
+Base config that `slm_ansible_role_openclaw_config` is merged over when the
+proxy is disabled (with the proxy, see [Reverse proxy](#reverse-proxy)):
 
 ```json
 {
@@ -81,6 +105,66 @@ Values are written single-quoted and taken literally, so characters such as
 `"`, `$`, `#` and spaces are fine. Values must not contain a single quote or a
 newline; the role rejects them before changing anything.
 
+## Reverse proxy
+
+With `slm_ansible_role_openclaw_proxy_enabled: true` (the default) the role
+installs Caddy on the same host. Caddy terminates TLS, logs the user in and
+passes the user name to the gateway in `X-Forwarded-User`. The gateway uses
+OpenClaw's trusted-proxy auth and approves new browser devices automatically
+(`deviceAutoApprove`), so no `openclaw devices approve` is needed. The gateway
+itself stays on loopback; `https://<hostname>` is the only way in.
+
+Rendered gateway config with the proxy (basic auth, user `alice` as admin):
+
+```json
+{
+  "gateway": {
+    "mode": "local",
+    "bind": "loopback",
+    "port": 18789,
+    "publicOrigin": "https://192.0.2.10",
+    "trustedProxies": ["127.0.0.1"],
+    "auth": {
+      "mode": "trusted-proxy",
+      "password": "${OPENCLAW_GATEWAY_PASSWORD}",
+      "identityScopes": { "alice": ["operator.admin"] },
+      "trustedProxy": {
+        "userHeader": "x-forwarded-user",
+        "requiredHeaders": ["x-forwarded-proto", "x-forwarded-host"],
+        "allowUsers": ["alice"],
+        "allowLoopback": true,
+        "deviceAutoApprove": { "enabled": true }
+      }
+    }
+  }
+}
+```
+
+- **Login.** `basic`: users and bcrypt hashes in
+  `slm_ansible_role_openclaw_proxy_basic_users`; create a hash with
+  `caddy hash-password --plaintext '<password>'`. `oidc`: oauth2-proxy runs on
+  `127.0.0.1:4180` and Caddy asks it for every request; register
+  `https://<hostname>/oauth2/callback` as redirect URI at the IdP.
+- **Permissions.** Auto-approved devices get OpenClaw's default operator scopes
+  (read, write, approvals, questions). Users in
+  `slm_ansible_role_openclaw_proxy_admin_users` get `operator.admin` for their
+  sessions only.
+- **TLS.** `internal` uses Caddy's own CA (browsers warn until you trust it),
+  `acme` gets a Let's Encrypt certificate (DNS name, ports 80/443 reachable
+  from the internet), `files` copies your certificate and key.
+- **Local CLI.** OpenClaw does not allow a token in trusted-proxy mode; local
+  CLI calls use the gateway password from `.env`. Run them as the service
+  user: `sudo -u openclaw -H openclaw devices list`.
+- The role owns `/etc/caddy/Caddyfile`. Setting `proxy_enabled: false` later
+  does not remove Caddy; remove it by hand or with `state: absent` and
+  `slm_ansible_role_openclaw_uninstall_caddy: true`.
+
+> **Breaking change.** The proxy is on by default. Playbooks that only set
+> `slm_ansible_role_openclaw_gateway_token` fail validation until they set
+> `slm_ansible_role_openclaw_gateway_password` and at least one basic user, or
+> `slm_ansible_role_openclaw_proxy_enabled: false`. Already paired browsers
+> keep working; open the `https://` URL from then on.
+
 ## Example playbook
 
 ```yaml
@@ -88,7 +172,12 @@ newline; the role rejects them before changing anything.
   hosts: openclaw
   become: true
   vars:
-    slm_ansible_role_openclaw_gateway_token: "{{ vault_openclaw_gateway_token }}"
+    slm_ansible_role_openclaw_gateway_password: "{{ vault_openclaw_gateway_password }}"
+    slm_ansible_role_openclaw_proxy_basic_users:
+      - name: alice
+        password_hash: "{{ vault_openclaw_alice_hash }}"
+    slm_ansible_role_openclaw_proxy_admin_users:
+      - alice
     slm_ansible_role_openclaw_env:
       ANTHROPIC_API_KEY: "{{ vault_anthropic_api_key }}"
     slm_ansible_role_openclaw_config:
@@ -100,9 +189,9 @@ newline; the role rejects them before changing anything.
     - role: slm-ansible-role-openclaw
 ```
 
-The gateway listens on loopback only. Reach it via SSH port forwarding
-(`ssh -L 18789:127.0.0.1:18789 <host>`) or set `gateway.bind` in
-`slm_ansible_role_openclaw_config` deliberately (see the OpenClaw security docs).
+Open `https://<host>` and log in as `alice`. Without the proxy
+(`proxy_enabled: false`, token auth) the gateway listens on loopback only;
+reach it via SSH port forwarding (`ssh -L 18789:127.0.0.1:18789 <host>`).
 
 Remove everything again:
 
@@ -119,10 +208,11 @@ Remove everything again:
 
 ## Testing
 
-Fast local input-validation test (runs only the validation tasks, installs nothing):
+Fast local tests of input validation and the rendered gateway config (install nothing):
 
 ```bash
 ansible-playbook -i tests/inventory tests/test_validation.yml
+ansible-playbook -i tests/inventory tests/test_config.yml
 yamllint . && ansible-lint
 ```
 
@@ -135,8 +225,9 @@ available and needs the usual `OS_*` environment variables.
 
 | Scenario | What it tests |
 |---|---|
-| `install-ubuntu2204`, `install-ubuntu2404` | Prepare installs `2026.9.33`, converge upgrades to the pinned version; verify checks user, permissions, config, secrets, rejection of an invalid config, running service and gateway probe; idempotence. |
-| `uninstall-ubuntu2204`, `uninstall-ubuntu2404` | Install, then `absent` with purge and Node.js removal; verify everything is gone; idempotence. |
+| `install-ubuntu2204`, `install-ubuntu2404` | Prepare installs without the proxy (token auth), converge switches to the proxy (basic auth, TLS internal); verify checks user, permissions, config, secrets, rejection of an invalid config, running services, closed gateway port, proxy responses (401/200, forged identity header), auto-approval of a new browser device and the gateway probe; idempotence. |
+| `install-oidc-ubuntu2404` | Proxy with OIDC against a fake IdP (config level): oauth2-proxy and Caddy running, private config, pinned version, redirect to sign-in for unauthenticated or forged requests; idempotence. |
+| `uninstall-ubuntu2204`, `uninstall-ubuntu2404` | Install with OIDC and TLS files, then `absent` with purge and Node.js removal; verify the gateway, oauth2-proxy and copied certificates are gone and Caddy is kept; idempotence. |
 
 ```bash
 molecule test -s install-ubuntu2404                           # KubeVirt
