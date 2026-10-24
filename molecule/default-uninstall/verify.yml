@@ -22,6 +22,11 @@
         - /usr/bin/openclaw
         - /var/lib/openclaw
         - /etc/apt/sources.list.d/nodesource.sources
+        - /etc/systemd/system/oauth2-proxy.service
+        - /usr/local/bin/oauth2-proxy
+        - /etc/oauth2-proxy
+        - /etc/caddy/certs/openclaw.crt
+        - /etc/caddy/certs/openclaw.key
 
     - name: Assert paths are removed
       ansible.builtin.assert:
@@ -44,6 +49,18 @@
           - ansible_facts['getent_passwd']['openclaw'] is none
         fail_msg: user openclaw still exists
 
+    - name: Read oauth2-proxy user
+      ansible.builtin.getent:
+        database: passwd
+        key: oauth2-proxy
+        fail_key: false
+
+    - name: Assert oauth2-proxy user is removed
+      ansible.builtin.assert:
+        that:
+          - ansible_facts['getent_passwd']['oauth2-proxy'] is none
+        fail_msg: user oauth2-proxy still exists
+
     - name: Read package facts
       ansible.builtin.package_facts:
 
@@ -52,6 +69,13 @@
         that:
           - "'nodejs' not in ansible_facts.packages"
         fail_msg: nodejs package still installed
+
+    # slm_ansible_role_openclaw_uninstall_caddy defaults to false
+    - name: Assert caddy is kept
+      ansible.builtin.assert:
+        that:
+          - "'caddy' in ansible_facts.packages"
+        fail_msg: caddy was removed although uninstall_caddy is false
 
 # absent must also work on a host where nothing is installed, including
 # hosts without python3-debian (needed by deb822_repository)

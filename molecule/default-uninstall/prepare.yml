@@ -2,6 +2,41 @@
 - name: Wait for SSH
   ansible.builtin.import_playbook: ../default/prepare.yml
 
+- name: PREPARE | CREATE TEST TLS CERTIFICATE
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    __tls_dir: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tls"
+  tasks:
+    - name: Create TLS directory
+      ansible.builtin.file:
+        path: "{{ __tls_dir }}"
+        state: directory
+        mode: "0700"
+
+    - name: Create TLS key
+      community.crypto.openssl_privatekey:
+        path: "{{ __tls_dir }}/openclaw.key"
+        type: Ed25519
+
+    # Caddy rejects certificates without names
+    - name: Create TLS certificate signing request
+      community.crypto.openssl_csr_pipe:
+        privatekey_path: "{{ __tls_dir }}/openclaw.key"
+        subject_alt_name:
+          - "IP:{{ hostvars[groups['all'][0]]['ansible_host'] }}"
+      register: __tls_csr
+      changed_when: false
+
+    - name: Create self-signed TLS certificate
+      community.crypto.x509_certificate:
+        path: "{{ __tls_dir }}/openclaw.crt"
+        privatekey_path: "{{ __tls_dir }}/openclaw.key"
+        csr_content: "{{ __tls_csr.csr }}"
+        provider: selfsigned
+
+# Install every proxy component that absent has to remove: oauth2-proxy and copied certs
 - name: PREPARE | INSTALL OPENCLAW
   hosts: all
   become: true
@@ -12,3 +47,20 @@
     - name: Apply role under test with state present
       ansible.builtin.include_role:
         name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+      vars:
+        slm_ansible_role_openclaw_proxy_tls: files
+        slm_ansible_role_openclaw_proxy_tls_cert_file: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tls/openclaw.crt"
+        slm_ansible_role_openclaw_proxy_tls_key_file: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/tls/openclaw.key"
+        slm_ansible_role_openclaw_proxy_auth: oidc
+        slm_ansible_role_openclaw_proxy_admin_users: []
+        slm_ansible_role_openclaw_proxy_oidc_issuer_url: https://idp.invalid/realms/test
+        slm_ansible_role_openclaw_proxy_oidc_client_id: openclaw
+        slm_ansible_role_openclaw_proxy_oidc_client_secret: molecule-client-secret
+        slm_ansible_role_openclaw_proxy_oidc_cookie_secret: 0123456789abcdef0123456789abcdef
+        slm_ansible_role_openclaw_proxy_oidc_allowed_emails:
+          - molecule@example.com
+        slm_ansible_role_openclaw_proxy_oidc_extra_config:
+          skip_oidc_discovery: true
+          login_url: https://idp.invalid/auth
+          redeem_url: https://idp.invalid/token
+          oidc_jwks_url: https://idp.invalid/certs

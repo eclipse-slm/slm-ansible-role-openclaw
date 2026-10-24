@@ -76,3 +76,69 @@
         name: nodesource
         state: absent
       when: __slm_ansible_role_openclaw_nodesource_stat.stat.exists
+
+- name: Stat oauth2-proxy unit
+  ansible.builtin.stat:
+    path: "{{ __slm_ansible_role_openclaw_oauth2_proxy_unit_path }}"
+  register: __slm_ansible_role_openclaw_oauth2_proxy_unit_stat
+
+- name: Stop and disable oauth2-proxy
+  ansible.builtin.systemd_service:
+    name: oauth2-proxy
+    state: stopped
+    enabled: false
+  when: __slm_ansible_role_openclaw_oauth2_proxy_unit_stat.stat.exists
+
+- name: Remove oauth2-proxy files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ __slm_ansible_role_openclaw_oauth2_proxy_unit_path }}"
+    - "{{ __slm_ansible_role_openclaw_oauth2_proxy_bin }}"
+    - "{{ __slm_ansible_role_openclaw_oauth2_proxy_conf_dir }}"
+  notify: Reload systemd
+
+- name: Remove oauth2-proxy user
+  ansible.builtin.user:
+    name: oauth2-proxy
+    state: absent
+
+- name: Remove oauth2-proxy group
+  ansible.builtin.group:
+    name: oauth2-proxy
+    state: absent
+
+- name: Remove copied TLS certificate and key
+  ansible.builtin.file:
+    path: "{{ __slm_ansible_role_openclaw_caddy_cert_dir }}/{{ item }}"
+    state: absent
+  loop:
+    - openclaw.crt
+    - openclaw.key
+
+- name: Remove Caddy and its repository
+  when: slm_ansible_role_openclaw_uninstall_caddy | bool
+  block:
+    - name: Remove Caddy
+      ansible.builtin.apt:
+        name: caddy
+        state: absent
+        purge: true
+
+    - name: Remove Caddy configuration
+      ansible.builtin.file:
+        path: /etc/caddy
+        state: absent
+
+    # deb822_repository needs python3-debian even for state absent
+    - name: Stat Caddy repository
+      ansible.builtin.stat:
+        path: /etc/apt/sources.list.d/caddy-stable.sources
+      register: __slm_ansible_role_openclaw_caddy_repo_stat
+
+    - name: Remove Caddy repository
+      ansible.builtin.deb822_repository:
+        name: caddy-stable
+        state: absent
+      when: __slm_ansible_role_openclaw_caddy_repo_stat.stat.exists
