@@ -28,8 +28,14 @@ __slm_ansible_role_openclaw_unit_path: "/etc/systemd/system/{{ slm_ansible_role_
 __slm_ansible_role_openclaw_nodesource_uri: "https://deb.nodesource.com/node_{{ slm_ansible_role_openclaw_nodejs_major }}.x"
 __slm_ansible_role_openclaw_nodesource_key: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
 
-# The token stays a ${VAR} reference; the value only lives in the .env file
-__slm_ansible_role_openclaw_base_config:
+# Browser origin of the proxy; Caddy site address, publicOrigin and OIDC redirect
+__slm_ansible_role_openclaw_proxy_origin: >-
+  https://{{ slm_ansible_role_openclaw_proxy_hostname }}{{
+  '' if slm_ansible_role_openclaw_proxy_https_port | int == 443
+  else ':' ~ slm_ansible_role_openclaw_proxy_https_port }}
+
+# Secrets stay ${VAR} references; the values only live in the .env file
+__slm_ansible_role_openclaw_token_config:
   gateway:
     mode: local
     bind: loopback
@@ -40,6 +46,38 @@ __slm_ansible_role_openclaw_base_config:
   agents:
     defaults:
       workspace: "{{ slm_ansible_role_openclaw_state_dir }}/workspace"
+
+# Caddy on the same host is the only remote path; the password is for local CLI calls
+__slm_ansible_role_openclaw_proxy_config:
+  gateway:
+    mode: local
+    bind: loopback
+    port: "{{ slm_ansible_role_openclaw_gateway_port | int }}"
+    publicOrigin: "{{ __slm_ansible_role_openclaw_proxy_origin }}"
+    trustedProxies:
+      - 127.0.0.1
+    auth: "{{ __slm_ansible_role_openclaw_proxy_auth_config }}"
+  agents:
+    defaults:
+      workspace: "{{ slm_ansible_role_openclaw_state_dir }}/workspace"
+
+__slm_ansible_role_openclaw_proxy_auth_config: >-
+  {{ {'mode': 'trusted-proxy',
+      'password': '${OPENCLAW_GATEWAY_PASSWORD}',
+      'trustedProxy': {
+        'userHeader': 'x-forwarded-user',
+        'requiredHeaders': ['x-forwarded-proto', 'x-forwarded-host'],
+        'allowUsers': __slm_ansible_role_openclaw_proxy_allowed_users,
+        'allowLoopback': true,
+        'deviceAutoApprove': {'enabled': true}}}
+     | combine({'identityScopes': dict(slm_ansible_role_openclaw_proxy_admin_users
+                                      | product([['operator.admin']]))}
+               if slm_ansible_role_openclaw_proxy_admin_users | length > 0 else {}) }}
+
+__slm_ansible_role_openclaw_base_config: >-
+  {{ __slm_ansible_role_openclaw_proxy_config
+     if slm_ansible_role_openclaw_proxy_enabled | bool
+     else __slm_ansible_role_openclaw_token_config }}
 
 __slm_ansible_role_openclaw_effective_config: "{{ __slm_ansible_role_openclaw_base_config | combine(slm_ansible_role_openclaw_config, recursive=True) }}"
 

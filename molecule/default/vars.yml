@@ -2,12 +2,6 @@
 # Role input shared by all converge and prepare playbooks. The token contains
 # characters that must survive the .env file literally.
 slm_ansible_role_openclaw_config:
-  # Listen beyond loopback so verify can reach the gateway from the control node
-  gateway:
-    bind: lan
-    controlUi:
-      allowedOrigins:
-        - "http://{{ ansible_host | default(inventory_hostname) }}:18789"
   agents:
     defaults:
       heartbeat:
@@ -15,3 +9,10 @@ slm_ansible_role_openclaw_config:
 slm_ansible_role_openclaw_env:
   DUMMY_PROVIDER_KEY: not-a-real-key
 slm_ansible_role_openclaw_gateway_token: 'molecule-t0ken"$#x y'
+slm_ansible_role_openclaw_gateway_password: molecule-gw-Pa55
+# Password molecule-Pa55
+slm_ansible_role_openclaw_proxy_basic_users:
+  - name: molecule
+    password_hash: '$2b$14$H81L2RzQQsxVL4VXLARLeekuBkRElmiX7tr7I.Tp7ukUKrftScMJ6'
+slm_ansible_role_openclaw_proxy_admin_users:
+  - molecule

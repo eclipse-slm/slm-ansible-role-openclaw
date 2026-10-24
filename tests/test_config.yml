@@ -1,0 +1,89 @@
+---
+# Fast local test of the rendered gateway config and .env entries. Only the
+# role's defaults and vars are loaded; nothing is installed.
+- name: TEST | Gateway config
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars_files:
+    - ../defaults/main.yml
+    - ../vars/main.yml
+    # Shared inputs; a later vars file overrides the role defaults above
+    - config_inputs.yml
+  tasks:
+    - name: Proxy disabled
+      ansible.builtin.include_tasks: assert_config.yml
+      vars:
+        __case: proxy disabled
+        slm_ansible_role_openclaw_proxy_enabled: false
+        __checks:
+          - "__c.gateway.auth == {'mode': 'token', 'token': '${OPENCLAW_GATEWAY_TOKEN}'}"
+          - "'publicOrigin' not in __c.gateway"
+          - "'trustedProxies' not in __c.gateway"
+          - "__e.keys() | list == ['OPENCLAW_GATEWAY_TOKEN']"
+
+    - name: Proxy basic
+      ansible.builtin.include_tasks: assert_config.yml
+      vars:
+        __case: proxy basic
+        __checks:
+          - "__c.gateway.mode == 'local'"
+          - "__c.gateway.bind == 'loopback'"
+          - "__c.gateway.port == 18789"
+          - "__c.gateway.publicOrigin == 'https://192.0.2.10'"
+          - "__c.gateway.trustedProxies == ['127.0.0.1']"
+          - "__c.gateway.auth.mode == 'trusted-proxy'"
+          - "__c.gateway.auth.password == '${OPENCLAW_GATEWAY_PASSWORD}'"
+          - "'token' not in __c.gateway.auth"
+          - "__c.gateway.auth.identityScopes == {'alice': ['operator.admin']}"
+          - >-
+            __c.gateway.auth.trustedProxy == {'userHeader': 'x-forwarded-user',
+            'requiredHeaders': ['x-forwarded-proto', 'x-forwarded-host'],
+            'allowUsers': ['alice', 'bob'], 'allowLoopback': True,
+            'deviceAutoApprove': {'enabled': True}}
+          - "'OPENCLAW_GATEWAY_TOKEN' not in __e"
+          - "__e.OPENCLAW_GATEWAY_PASSWORD == 'pw'"
+
+    - name: Proxy oidc
+      ansible.builtin.include_tasks: assert_config.yml
+      vars:
+        __case: proxy oidc
+        slm_ansible_role_openclaw_proxy_auth: oidc
+        slm_ansible_role_openclaw_proxy_oidc_allowed_emails:
+          - alice@example.com
+        slm_ansible_role_openclaw_proxy_admin_users:
+          - alice@example.com
+        __checks:
+          - "__c.gateway.auth.trustedProxy.allowUsers == ['alice@example.com']"
+          - "__c.gateway.auth.identityScopes == {'alice@example.com': ['operator.admin']}"
+
+    - name: Custom https port
+      ansible.builtin.include_tasks: assert_config.yml
+      vars:
+        __case: custom https port
+        slm_ansible_role_openclaw_proxy_https_port: 8443
+        __checks:
+          - "__c.gateway.publicOrigin == 'https://192.0.2.10:8443'"
+          - "__slm_ansible_role_openclaw_proxy_origin == 'https://192.0.2.10:8443'"
+
+    - name: User override merges
+      ansible.builtin.include_tasks: assert_config.yml
+      vars:
+        __case: user override merges
+        slm_ansible_role_openclaw_config:
+          gateway:
+            auth:
+              trustedProxy:
+                allowUsers:
+                  - carol
+        __checks:
+          - "__c.gateway.auth.trustedProxy.allowUsers == ['carol']"
+          - "__c.gateway.auth.trustedProxy.allowLoopback"
+
+    - name: No admin users
+      ansible.builtin.include_tasks: assert_config.yml
+      vars:
+        __case: no admin users
+        slm_ansible_role_openclaw_proxy_admin_users: []
+        __checks:
+          - "'identityScopes' not in __c.gateway.auth"

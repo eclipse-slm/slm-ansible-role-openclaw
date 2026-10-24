@@ -1,0 +1,12 @@
+---
+# Inputs shared by all test_config.yml cases
+slm_ansible_role_openclaw_proxy_hostname: 192.0.2.10
+slm_ansible_role_openclaw_gateway_token: tok
+slm_ansible_role_openclaw_gateway_password: pw
+slm_ansible_role_openclaw_proxy_basic_users:
+  - name: alice
+    password_hash: '$2b$14$abc'
+  - name: bob
+    password_hash: '$2b$14$def'
+slm_ansible_role_openclaw_proxy_admin_users:
+  - alice

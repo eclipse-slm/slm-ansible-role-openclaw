@@ -1,0 +1,11 @@
+---
+# Included once per case by test_config.yml: every expression in __checks must
+# hold for the effective openclaw.json (__c) and .env entries (__e).
+- name: "Assert config for case: {{ __case }}"
+  vars:
+    __c: "{{ __slm_ansible_role_openclaw_effective_config }}"
+    __e: "{{ __slm_ansible_role_openclaw_env_all }}"
+  ansible.builtin.assert:
+    that: "{{ __checks }}"
+    fail_msg: "Case '{{ __case }}' failed: config={{ __c | to_json }} env keys={{ __e.keys() | list }}"
+    success_msg: "Case '{{ __case }}' passed"
