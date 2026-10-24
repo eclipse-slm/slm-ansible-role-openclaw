@@ -1,0 +1,29 @@
+---
+- name: CONVERGE | INSTALL OPENCLAW WITH OIDC PROXY
+  hosts: all
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../default/vars.yml
+  tasks:
+    # Task vars beat the vars_files above; no IdP in the test, so discovery is
+    # skipped and the endpoints never answer
+    - name: Apply role under test
+      ansible.builtin.include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+      vars:
+        slm_ansible_role_openclaw_proxy_auth: oidc
+        slm_ansible_role_openclaw_proxy_basic_users: []
+        slm_ansible_role_openclaw_proxy_admin_users:
+          - molecule@example.com
+        slm_ansible_role_openclaw_proxy_oidc_issuer_url: https://idp.invalid/realms/test
+        slm_ansible_role_openclaw_proxy_oidc_client_id: openclaw
+        slm_ansible_role_openclaw_proxy_oidc_client_secret: molecule-client-secret
+        slm_ansible_role_openclaw_proxy_oidc_cookie_secret: 0123456789abcdef0123456789abcdef
+        slm_ansible_role_openclaw_proxy_oidc_allowed_emails:
+          - molecule@example.com
+        slm_ansible_role_openclaw_proxy_oidc_extra_config:
+          skip_oidc_discovery: true
+          login_url: https://idp.invalid/auth
+          redeem_url: https://idp.invalid/token
+          oidc_jwks_url: https://idp.invalid/certs

@@ -1,0 +1,56 @@
+---
+dependency:
+  name: galaxy
+  options:
+    ignore-certs: false
+    ignore-errors: false
+    role-file: requirements.yml
+    requirements-file: requirements.yml
+
+# The platform carries the keys of both molecule_generic drivers: image and
+# volume_size for kubevirt, image_name and groups for openstack.
+platforms:
+  - name: openclaw-oidc-ubuntu2404
+    image: quay.io/containerdisks/ubuntu:24.04
+    volume_size: 15Gi
+    image_name: Ubuntu 24.04 64-bit
+
+ansible:
+  cfg:
+    defaults:
+      host_key_checking: false
+      verbosity: 1
+    ssh_connection:
+      pipelining: true
+  env:
+    ANSIBLE_FORCE_COLOR: "1"
+    ANSIBLE_LOAD_CALLBACK_PLUGINS: "1"
+    # kubevirt by default; MOLECULE_DRIVER=openstack selects the fallback
+    MOLECULE_DRIVER: ${MOLECULE_DRIVER:-kubevirt}
+
+  executor:
+    backend: ansible-playbook
+    args:
+      ansible_playbook:
+        - --diff
+        - --force-handlers
+
+  playbooks:
+    create: ../default/create.yml
+    destroy: ../default/destroy.yml
+    prepare: ../default/prepare.yml
+    converge: ../default-install-oidc/converge.yml
+    verify: ../default-install-oidc/verify.yml
+
+scenario:
+  name: install-oidc-ubuntu2404
+  test_sequence:
+    - dependency
+    - destroy
+    - syntax
+    - create
+    - prepare
+    - converge
+    - idempotence
+    - verify
+    - destroy

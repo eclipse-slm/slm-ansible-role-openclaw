@@ -22,5 +22,29 @@
 	reverse_proxy 127.0.0.1:{{ slm_ansible_role_openclaw_gateway_port }} {
 		header_up X-Forwarded-User {http.auth.user.id}
 	}
+{% elif slm_ansible_role_openclaw_proxy_auth == 'oidc' %}
+	# Only oauth2-proxy may set the identity header
+	request_header -X-Forwarded-User
+
+	handle /oauth2/* {
+		reverse_proxy 127.0.0.1:4180 {
+			header_up X-Real-IP {remote_host}
+			header_up X-Forwarded-Uri {uri}
+		}
+	}
+
+	handle {
+		forward_auth 127.0.0.1:4180 {
+			uri /oauth2/auth
+			header_up X-Real-IP {remote_host}
+			copy_headers X-Auth-Request-Email>X-Forwarded-User
+
+			@unauthenticated status 401
+			handle_response @unauthenticated {
+				redir * /oauth2/sign_in?rd={scheme}://{host}{uri}
+			}
+		}
+		reverse_proxy 127.0.0.1:{{ slm_ansible_role_openclaw_gateway_port }}
+	}
 {% endif %}
 }

@@ -1,0 +1,102 @@
+---
+- name: Create oauth2-proxy group
+  ansible.builtin.group:
+    name: oauth2-proxy
+    system: true
+
+- name: Create oauth2-proxy user
+  ansible.builtin.user:
+    name: oauth2-proxy
+    group: oauth2-proxy
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Read installed oauth2-proxy version
+  ansible.builtin.command: "{{ __slm_ansible_role_openclaw_oauth2_proxy_bin }} --version"
+  changed_when: false
+  failed_when: false
+  register: __slm_ansible_role_openclaw_oauth2_proxy_installed
+
+- name: Install oauth2-proxy release
+  when: >-
+    ('v' ~ slm_ansible_role_openclaw_oauth2_proxy_version ~ ' ')
+    not in (__slm_ansible_role_openclaw_oauth2_proxy_installed.stdout | default('') ~ ' ')
+  block:
+    - name: Create oauth2-proxy download directory
+      ansible.builtin.tempfile:
+        state: directory
+        suffix: oauth2-proxy
+      register: __slm_ansible_role_openclaw_oauth2_proxy_tmp
+
+    - name: Download oauth2-proxy release
+      ansible.builtin.get_url:
+        url: "{{ __slm_ansible_role_openclaw_oauth2_proxy_url }}"
+        dest: "{{ __slm_ansible_role_openclaw_oauth2_proxy_tmp.path }}/oauth2-proxy.tar.gz"
+        checksum: "sha256:{{ __slm_ansible_role_openclaw_oauth2_proxy_url }}-sha256sum.txt"
+        mode: "0644"
+
+    - name: Unpack oauth2-proxy release
+      ansible.builtin.unarchive:
+        src: "{{ __slm_ansible_role_openclaw_oauth2_proxy_tmp.path }}/oauth2-proxy.tar.gz"
+        dest: "{{ __slm_ansible_role_openclaw_oauth2_proxy_tmp.path }}"
+        remote_src: true
+
+    - name: Install oauth2-proxy binary
+      ansible.builtin.copy:
+        src: "{{ __slm_ansible_role_openclaw_oauth2_proxy_tmp.path }}/{{ __slm_ansible_role_openclaw_oauth2_proxy_release }}/oauth2-proxy"
+        dest: "{{ __slm_ansible_role_openclaw_oauth2_proxy_bin }}"
+        remote_src: true
+        owner: root
+        group: root
+        mode: "0755"
+      notify: Restart oauth2-proxy
+  always:
+    - name: Remove oauth2-proxy download directory
+      ansible.builtin.file:
+        path: "{{ __slm_ansible_role_openclaw_oauth2_proxy_tmp.path }}"
+        state: absent
+      when: __slm_ansible_role_openclaw_oauth2_proxy_tmp.path is defined
+
+- name: Create oauth2-proxy config directory
+  ansible.builtin.file:
+    path: "{{ __slm_ansible_role_openclaw_oauth2_proxy_conf_dir }}"
+    state: directory
+    owner: root
+    group: oauth2-proxy
+    mode: "0750"
+
+- name: Render oauth2-proxy config
+  ansible.builtin.template:
+    src: oauth2-proxy.cfg.j2
+    dest: "{{ __slm_ansible_role_openclaw_oauth2_proxy_conf_dir }}/oauth2-proxy.cfg"
+    owner: oauth2-proxy
+    group: oauth2-proxy
+    mode: "0600"
+  no_log: true
+  notify: Restart oauth2-proxy
+
+- name: Render oauth2-proxy allowed emails
+  ansible.builtin.copy:
+    content: "{{ slm_ansible_role_openclaw_proxy_oidc_allowed_emails | join('\n') }}\n"
+    dest: "{{ __slm_ansible_role_openclaw_oauth2_proxy_conf_dir }}/emails"
+    owner: oauth2-proxy
+    group: oauth2-proxy
+    mode: "0640"
+  notify: Restart oauth2-proxy
+
+- name: Render oauth2-proxy systemd unit
+  ansible.builtin.template:
+    src: oauth2-proxy.service.j2
+    dest: "{{ __slm_ansible_role_openclaw_oauth2_proxy_unit_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+  notify: Restart oauth2-proxy
+
+- name: Enable and start oauth2-proxy
+  ansible.builtin.systemd_service:
+    name: oauth2-proxy
+    enabled: true
+    state: started
+    daemon_reload: true

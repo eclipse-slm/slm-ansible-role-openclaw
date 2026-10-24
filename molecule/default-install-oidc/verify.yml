@@ -1,0 +1,75 @@
+---
+- name: VERIFY | INSTALL OPENCLAW WITH OIDC PROXY
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Read service facts
+      ansible.builtin.service_facts:
+
+    - name: Assert oauth2-proxy and caddy are running and enabled
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.services[item].state == 'running'
+          - ansible_facts.services[item].status == 'enabled'
+        fail_msg: "{{ item }} is missing, not running or not enabled"
+      loop:
+        - oauth2-proxy.service
+        - caddy.service
+
+    - name: Stat oauth2-proxy config
+      ansible.builtin.stat:
+        path: /etc/oauth2-proxy/oauth2-proxy.cfg
+      register: __verify_oauth2_cfg
+
+    - name: Assert oauth2-proxy config is private
+      ansible.builtin.assert:
+        that:
+          - __verify_oauth2_cfg.stat.exists
+          - __verify_oauth2_cfg.stat.mode == '0600'
+          - __verify_oauth2_cfg.stat.pw_name == 'oauth2-proxy'
+        fail_msg: "oauth2-proxy.cfg missing or not 0600/oauth2-proxy: {{ __verify_oauth2_cfg.stat }}"
+
+    - name: Read oauth2-proxy version
+      ansible.builtin.command: /usr/local/bin/oauth2-proxy --version
+      changed_when: false
+      register: __verify_oauth2_version
+
+    - name: Assert pinned oauth2-proxy version is installed
+      ansible.builtin.assert:
+        that:
+          - "'7.15.5' in __verify_oauth2_version.stdout ~ __verify_oauth2_version.stderr"
+        fail_msg: "Unexpected oauth2-proxy version: {{ __verify_oauth2_version.stdout }}"
+
+    - name: Read rendered config
+      ansible.builtin.slurp:
+        path: /var/lib/openclaw/.openclaw/openclaw.json
+      register: __verify_config_raw
+
+    - name: Assert gateway allows the OIDC users
+      vars:
+        __cfg: "{{ __verify_config_raw.content | b64decode | from_json }}"
+      ansible.builtin.assert:
+        that:
+          - __cfg.gateway.auth.trustedProxy.allowUsers == ['molecule@example.com']
+          - "__cfg.gateway.auth.identityScopes == {'molecule@example.com': ['operator.admin']}"
+        fail_msg: "Unexpected openclaw.json gateway: {{ __cfg.gateway }}"
+
+    - name: Assert unauthenticated requests are sent to the OIDC sign-in
+      ansible.builtin.uri:
+        url: "https://{{ ansible_host }}/"
+        validate_certs: false
+        follow_redirects: none
+        headers: "{{ item.headers }}"
+        status_code: 302
+      register: __verify_oidc_redirect
+      failed_when: >-
+        __verify_oidc_redirect.status != 302
+        or '/oauth2/sign_in' not in __verify_oidc_redirect.location | default('')
+      delegate_to: localhost
+      become: false
+      loop:
+        - {name: no session, headers: {}}
+        - {name: forged identity header, headers: {X-Forwarded-User: molecule@example.com, X-Auth-Request-Email: molecule@example.com}}
+      loop_control:
+        label: "{{ item.name }}"

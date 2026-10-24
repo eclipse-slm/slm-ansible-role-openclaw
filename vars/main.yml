@@ -29,6 +29,32 @@ __slm_ansible_role_openclaw_caddy_uri: https://dl.cloudsmith.io/public/caddy/sta
 __slm_ansible_role_openclaw_caddy_key: https://dl.cloudsmith.io/public/caddy/stable/gpg.key
 __slm_ansible_role_openclaw_caddy_cert_dir: /etc/caddy/certs
 
+__slm_ansible_role_openclaw_oauth2_proxy_bin: /usr/local/bin/oauth2-proxy
+__slm_ansible_role_openclaw_oauth2_proxy_conf_dir: /etc/oauth2-proxy
+__slm_ansible_role_openclaw_oauth2_proxy_unit_path: /etc/systemd/system/oauth2-proxy.service
+__slm_ansible_role_openclaw_oauth2_proxy_arch: "{{ {'x86_64': 'amd64', 'aarch64': 'arm64'}[ansible_facts['architecture']] }}"
+__slm_ansible_role_openclaw_oauth2_proxy_release: >-
+  oauth2-proxy-v{{ slm_ansible_role_openclaw_oauth2_proxy_version }}.linux-{{ __slm_ansible_role_openclaw_oauth2_proxy_arch }}
+__slm_ansible_role_openclaw_oauth2_proxy_url: >-
+  https://github.com/oauth2-proxy/oauth2-proxy/releases/download/v{{ slm_ansible_role_openclaw_oauth2_proxy_version
+  }}/{{ __slm_ansible_role_openclaw_oauth2_proxy_release }}.tar.gz
+
+# forward_auth only needs the auth endpoint; static://202 answers authenticated requests
+__slm_ansible_role_openclaw_oauth2_proxy_config: >-
+  {{ {'http_address': '127.0.0.1:4180',
+      'provider': 'oidc',
+      'oidc_issuer_url': slm_ansible_role_openclaw_proxy_oidc_issuer_url,
+      'client_id': slm_ansible_role_openclaw_proxy_oidc_client_id,
+      'client_secret': slm_ansible_role_openclaw_proxy_oidc_client_secret,
+      'cookie_secret': slm_ansible_role_openclaw_proxy_oidc_cookie_secret,
+      'cookie_secure': true,
+      'redirect_url': __slm_ansible_role_openclaw_proxy_origin ~ '/oauth2/callback',
+      'authenticated_emails_file': __slm_ansible_role_openclaw_oauth2_proxy_conf_dir ~ '/emails',
+      'upstreams': ['static://202'],
+      'reverse_proxy': true,
+      'set_xauthrequest': true}
+     | combine(slm_ansible_role_openclaw_proxy_oidc_extra_config) }}
+
 __slm_ansible_role_openclaw_nodesource_uri: "https://deb.nodesource.com/node_{{ slm_ansible_role_openclaw_nodejs_major }}.x"
 __slm_ansible_role_openclaw_nodesource_key: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
 

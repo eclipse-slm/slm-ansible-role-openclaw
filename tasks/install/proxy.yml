@@ -1,3 +1,8 @@
 ---
+# oauth2-proxy first, so the forward_auth target exists when Caddy reloads
+- name: Include oauth2-proxy tasks
+  ansible.builtin.include_tasks: proxy/oauth2_proxy.yml
+  when: slm_ansible_role_openclaw_proxy_auth == 'oidc'
+
 - name: Include Caddy tasks
   ansible.builtin.include_tasks: proxy/caddy.yml
