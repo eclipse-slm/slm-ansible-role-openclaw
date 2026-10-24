@@ -1,0 +1,32 @@
+---
+- name: Stat oauth2-proxy unit
+  ansible.builtin.stat:
+    path: "{{ __slm_ansible_role_openclaw_oauth2_proxy_unit_path }}"
+  register: __slm_ansible_role_openclaw_oauth2_proxy_unit_stat
+
+- name: Stop and disable oauth2-proxy
+  ansible.builtin.systemd_service:
+    name: oauth2-proxy
+    state: stopped
+    enabled: false
+  when: __slm_ansible_role_openclaw_oauth2_proxy_unit_stat.stat.exists
+
+- name: Remove oauth2-proxy files
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - "{{ __slm_ansible_role_openclaw_oauth2_proxy_unit_path }}"
+    - "{{ __slm_ansible_role_openclaw_oauth2_proxy_bin }}"
+    - "{{ __slm_ansible_role_openclaw_oauth2_proxy_conf_dir }}"
+  notify: Reload systemd
+
+- name: Remove oauth2-proxy user
+  ansible.builtin.user:
+    name: oauth2-proxy
+    state: absent
+
+- name: Remove oauth2-proxy group
+  ansible.builtin.group:
+    name: oauth2-proxy
+    state: absent

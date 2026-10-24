@@ -148,7 +148,13 @@ Rendered gateway config with the proxy (basic auth, user `alice` as admin):
 - **Permissions.** Auto-approved devices get OpenClaw's default operator scopes
   (read, write, approvals, questions). Users in
   `slm_ansible_role_openclaw_proxy_admin_users` get `operator.admin` for their
-  sessions only.
+  sessions only. Caddy sends `X-Openclaw-Scopes` on every request (overwriting
+  any value from the client), because OpenClaw otherwise grants trusted-proxy
+  HTTP callers such as `/tools/invoke` full admin.
+- **Local processes are trusted like the proxy.** The gateway accepts identity
+  headers from `127.0.0.1` (`allowLoopback`), so any user or process on the
+  host can act as any allowed user, including admins. Only use the proxy on
+  hosts where every local account is trusted.
 - **TLS.** `internal` uses Caddy's own CA (browsers warn until you trust it),
   `acme` gets a Let's Encrypt certificate (DNS name, ports 80/443 reachable
   from the internet), `files` copies your certificate and key.

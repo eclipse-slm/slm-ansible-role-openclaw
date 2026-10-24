@@ -4,5 +4,10 @@
   ansible.builtin.include_tasks: proxy/oauth2_proxy.yml
   when: slm_ansible_role_openclaw_proxy_auth == 'oidc'
 
+# Switching from oidc to basic must not leave oauth2-proxy and its secrets behind
+- name: Remove oauth2-proxy when not using oidc
+  ansible.builtin.include_tasks: proxy/oauth2_proxy_absent.yml
+  when: slm_ansible_role_openclaw_proxy_auth != 'oidc'
+
 - name: Include Caddy tasks
   ansible.builtin.include_tasks: proxy/caddy.yml

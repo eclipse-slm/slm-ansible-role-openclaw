@@ -19,3 +19,9 @@
     name: oauth2-proxy
     state: restarted
     daemon_reload: true
+
+# Restart, not reload: the certificates of the old config may already be gone
+- name: Restart caddy
+  ansible.builtin.systemd_service:
+    name: caddy
+    state: restarted

@@ -77,6 +77,23 @@
           - "'caddy' in ansible_facts.packages"
         fail_msg: caddy was removed although uninstall_caddy is false
 
+    # The kept Caddy must not point at the removed gateway, oauth2-proxy or certs
+    - name: Validate the remaining Caddyfile
+      ansible.builtin.command: caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile
+      changed_when: false
+
+    - name: Read the remaining Caddyfile
+      ansible.builtin.slurp:
+        path: /etc/caddy/Caddyfile
+      register: __verify_caddyfile
+
+    - name: Assert the remaining Caddyfile has no OpenClaw site
+      ansible.builtin.assert:
+        that:
+          - "'reverse_proxy' not in __verify_caddyfile.content | b64decode"
+          - "'/etc/caddy/certs/openclaw' not in __verify_caddyfile.content | b64decode"
+        fail_msg: "Caddyfile still serves OpenClaw: {{ __verify_caddyfile.content | b64decode }}"
+
 # absent must also work on a host where nothing is installed, including
 # hosts without python3-debian (needed by deb822_repository)
 - name: VERIFY | ABSENT ON A CLEAN HOST

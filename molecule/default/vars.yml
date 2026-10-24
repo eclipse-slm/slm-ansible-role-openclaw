@@ -2,6 +2,11 @@
 # Role input shared by all converge and prepare playbooks. The token contains
 # characters that must survive the .env file literally.
 slm_ansible_role_openclaw_config:
+  # Owner-only tool exposed over HTTP so verify can tell admin from non-admin users
+  gateway:
+    tools:
+      allow:
+        - gateway
   agents:
     defaults:
       heartbeat:
@@ -10,9 +15,11 @@ slm_ansible_role_openclaw_env:
   DUMMY_PROVIDER_KEY: not-a-real-key
 slm_ansible_role_openclaw_gateway_token: 'molecule-t0ken"$#x y'
 slm_ansible_role_openclaw_gateway_password: molecule-gw-Pa55
-# Password molecule-Pa55
+# Passwords molecule-Pa55 (admin) and viewer-Pa55 (no admin)
 slm_ansible_role_openclaw_proxy_basic_users:
   - name: molecule
     password_hash: '$2b$14$H81L2RzQQsxVL4VXLARLeekuBkRElmiX7tr7I.Tp7ukUKrftScMJ6'
+  - name: viewer
+    password_hash: '$2b$14$qe1Ur3i4/6.NfOcbEkqWJeTj/SlEkWZDRYSOtpywg6QJYkiSwgV6q'
 slm_ansible_role_openclaw_proxy_admin_users:
   - molecule

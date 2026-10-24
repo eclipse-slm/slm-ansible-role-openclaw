@@ -12,6 +12,15 @@
 	tls {{ __slm_ansible_role_openclaw_caddy_cert_dir }}/openclaw.crt {{ __slm_ansible_role_openclaw_caddy_cert_dir }}/openclaw.key
 {% endif %}
 
+	# Without this header OpenClaw grants trusted-proxy HTTP callers operator.admin;
+	# only proxy_admin_users keep it. Overwrites any scopes header sent by the client.
+	map {{ __slm_ansible_role_openclaw_proxy_identity_placeholder }} {openclaw_scopes} {
+{% for user in slm_ansible_role_openclaw_proxy_admin_users %}
+		{{ user }} "{{ __slm_ansible_role_openclaw_proxy_admin_scopes | join(',') }}"
+{% endfor %}
+		default "{{ __slm_ansible_role_openclaw_proxy_user_scopes | join(',') }}"
+	}
+
 {% if slm_ansible_role_openclaw_proxy_auth == 'basic' %}
 	basic_auth {
 {% for user in slm_ansible_role_openclaw_proxy_basic_users %}
@@ -21,6 +30,7 @@
 	# Overwrites any identity header sent by the client
 	reverse_proxy 127.0.0.1:{{ slm_ansible_role_openclaw_gateway_port }} {
 		header_up X-Forwarded-User {http.auth.user.id}
+		header_up X-Openclaw-Scopes {openclaw_scopes}
 	}
 {% elif slm_ansible_role_openclaw_proxy_auth == 'oidc' %}
 	# Only oauth2-proxy may set the identity header
@@ -39,12 +49,15 @@
 			header_up X-Real-IP {remote_host}
 			copy_headers X-Auth-Request-Email>X-Forwarded-User
 
+			# Relative: {host} has no port, and oauth2-proxy rejects foreign absolute redirects
 			@unauthenticated status 401
 			handle_response @unauthenticated {
-				redir * /oauth2/sign_in?rd={scheme}://{host}{uri}
+				redir * /oauth2/sign_in?rd={uri}
 			}
 		}
-		reverse_proxy 127.0.0.1:{{ slm_ansible_role_openclaw_gateway_port }}
+		reverse_proxy 127.0.0.1:{{ slm_ansible_role_openclaw_gateway_port }} {
+			header_up X-Openclaw-Scopes {openclaw_scopes}
+		}
 	}
 {% endif %}
 }

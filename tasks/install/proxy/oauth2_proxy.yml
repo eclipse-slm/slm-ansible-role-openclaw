@@ -100,3 +100,14 @@
     enabled: true
     state: started
     daemon_reload: true
+
+- name: Apply pending oauth2-proxy restarts
+  ansible.builtin.meta: flush_handlers
+
+# Type=simple reports started even when a bad config makes it exit right away
+- name: Wait for oauth2-proxy
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 4180
+    timeout: 60
+    msg: oauth2-proxy did not open port 4180; check journalctl -u oauth2-proxy.

@@ -77,37 +77,8 @@
         state: absent
       when: __slm_ansible_role_openclaw_nodesource_stat.stat.exists
 
-- name: Stat oauth2-proxy unit
-  ansible.builtin.stat:
-    path: "{{ __slm_ansible_role_openclaw_oauth2_proxy_unit_path }}"
-  register: __slm_ansible_role_openclaw_oauth2_proxy_unit_stat
-
-- name: Stop and disable oauth2-proxy
-  ansible.builtin.systemd_service:
-    name: oauth2-proxy
-    state: stopped
-    enabled: false
-  when: __slm_ansible_role_openclaw_oauth2_proxy_unit_stat.stat.exists
-
-- name: Remove oauth2-proxy files
-  ansible.builtin.file:
-    path: "{{ item }}"
-    state: absent
-  loop:
-    - "{{ __slm_ansible_role_openclaw_oauth2_proxy_unit_path }}"
-    - "{{ __slm_ansible_role_openclaw_oauth2_proxy_bin }}"
-    - "{{ __slm_ansible_role_openclaw_oauth2_proxy_conf_dir }}"
-  notify: Reload systemd
-
-- name: Remove oauth2-proxy user
-  ansible.builtin.user:
-    name: oauth2-proxy
-    state: absent
-
-- name: Remove oauth2-proxy group
-  ansible.builtin.group:
-    name: oauth2-proxy
-    state: absent
+- name: Remove oauth2-proxy
+  ansible.builtin.include_tasks: install/proxy/oauth2_proxy_absent.yml
 
 - name: Remove copied TLS certificate and key
   ansible.builtin.file:
@@ -116,6 +87,26 @@
   loop:
     - openclaw.crt
     - openclaw.key
+
+# A kept Caddy must not serve the removed gateway or point at the removed certs
+- name: Stat Caddyfile
+  ansible.builtin.stat:
+    path: /etc/caddy/Caddyfile
+  register: __slm_ansible_role_openclaw_caddyfile_stat
+  when: not slm_ansible_role_openclaw_uninstall_caddy | bool
+
+- name: Clear the OpenClaw site from the Caddyfile
+  ansible.builtin.copy:
+    content: |
+      # OpenClaw was removed by Ansible; Caddy is kept (slm_ansible_role_openclaw_uninstall_caddy: false)
+    dest: /etc/caddy/Caddyfile
+    owner: root
+    group: caddy
+    mode: "0644"
+  when:
+    - not slm_ansible_role_openclaw_uninstall_caddy | bool
+    - __slm_ansible_role_openclaw_caddyfile_stat.stat.exists
+  notify: Restart caddy
 
 - name: Remove Caddy and its repository
   when: slm_ansible_role_openclaw_uninstall_caddy | bool

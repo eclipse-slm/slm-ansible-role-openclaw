@@ -64,6 +64,25 @@ __slm_ansible_role_openclaw_proxy_origin: >-
   '' if slm_ansible_role_openclaw_proxy_https_port | int == 443
   else ':' ~ slm_ansible_role_openclaw_proxy_https_port }}
 
+# Scope header Caddy sends per identity (x-openclaw-scopes). Admins keep OpenClaw's
+# full default set; everyone else gets the scopes auto-approved devices receive.
+__slm_ansible_role_openclaw_proxy_admin_scopes:
+  - operator.admin
+  - operator.read
+  - operator.write
+  - operator.approvals
+  - operator.questions
+  - operator.pairing
+  - operator.talk.secrets
+__slm_ansible_role_openclaw_proxy_user_scopes:
+  - operator.read
+  - operator.write
+  - operator.approvals
+  - operator.questions
+__slm_ansible_role_openclaw_proxy_identity_placeholder: >-
+  {{ '{http.auth.user.id}' if slm_ansible_role_openclaw_proxy_auth == 'basic'
+     else '{http.request.header.X-Forwarded-User}' }}
+
 # Secrets stay ${VAR} references; the values only live in the .env file
 __slm_ansible_role_openclaw_token_config:
   gateway:

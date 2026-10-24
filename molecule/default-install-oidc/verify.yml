@@ -63,9 +63,11 @@
         headers: "{{ item.headers }}"
         status_code: 302
       register: __verify_oidc_redirect
+      # rd must stay relative: {host} drops a non-default port, and oauth2-proxy
+      # rejects absolute redirects outside whitelist_domains
       failed_when: >-
         __verify_oidc_redirect.status != 302
-        or '/oauth2/sign_in' not in __verify_oidc_redirect.location | default('')
+        or '/oauth2/sign_in?rd=/' not in __verify_oidc_redirect.location | default('')
       delegate_to: localhost
       become: false
       loop:
@@ -73,3 +75,37 @@
         - {name: forged identity header, headers: {X-Forwarded-User: molecule@example.com, X-Auth-Request-Email: molecule@example.com}}
       loop_control:
         label: "{{ item.name }}"
+
+# Switching a present host from oidc to basic must not leave oauth2-proxy and its
+# secrets behind; the last play restores oidc so verify can be re-run
+- name: VERIFY | SWITCH FROM OIDC TO BASIC AUTH
+  hosts: all
+  become: true
+  gather_facts: true
+  vars_files:
+    - ../default/vars.yml
+  tasks:
+    - name: Apply role with basic auth
+      ansible.builtin.include_role:
+        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+
+    - name: Stat oauth2-proxy leftovers
+      ansible.builtin.stat:
+        path: "{{ item }}"
+      register: __verify_oauth2_leftovers
+      loop:
+        - /etc/systemd/system/oauth2-proxy.service
+        - /usr/local/bin/oauth2-proxy
+        - /etc/oauth2-proxy
+
+    - name: Assert oauth2-proxy is removed after switching to basic
+      ansible.builtin.assert:
+        that:
+          - not item.stat.exists
+        fail_msg: "{{ item.item }} still exists after switching to basic auth"
+      loop: "{{ __verify_oauth2_leftovers.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+- name: VERIFY | RESTORE OIDC
+  ansible.builtin.import_playbook: converge.yml
