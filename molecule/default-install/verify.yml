@@ -254,3 +254,53 @@
           - __verify_gateway_status.rc == 0
           - "'Connectivity probe: ok' in __verify_gateway_status.stdout"
         fail_msg: "Gateway status failed: {{ __verify_gateway_status.stdout }}"
+
+    - name: Install pairing test client dependencies on the control node
+      ansible.builtin.pip:
+        name:
+          - websockets
+          - cryptography
+        virtualenv: "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pair-venv"
+        virtualenv_command: python3 -m venv
+      delegate_to: localhost
+      become: false
+
+    # Connects through Caddy like the Control UI with a new device identity
+    - name: Connect a new browser device through the proxy
+      ansible.builtin.command:
+        argv:
+          - "{{ lookup('env', 'MOLECULE_EPHEMERAL_DIRECTORY') }}/pair-venv/bin/python"
+          - -I
+          - "{{ playbook_dir }}/files/pair_client.py"
+          - "wss://{{ ansible_host }}/"
+          - "https://{{ ansible_host }}"
+          - molecule
+          - molecule-Pa55
+      delegate_to: localhost
+      become: false
+      changed_when: false
+      register: __verify_pair_client
+
+    - name: Read devices as service user
+      ansible.builtin.command: /usr/bin/openclaw devices list --json
+      become: true
+      become_user: openclaw
+      environment:
+        OPENCLAW_CONFIG_PATH: /var/lib/openclaw/.openclaw/openclaw.json
+        OPENCLAW_STATE_DIR: /var/lib/openclaw/.openclaw
+      changed_when: false
+      register: __verify_devices
+
+    - name: Assert the new device was approved without manual pairing
+      vars:
+        __client: "{{ __verify_pair_client.stdout | from_json }}"
+        __devices: "{{ __verify_devices.stdout | from_json }}"
+        __paired: "{{ __devices.paired | selectattr('deviceId', 'equalto', __client.deviceId) | list }}"
+      ansible.builtin.assert:
+        that:
+          - __client.payload.auth.method == 'trusted-proxy'
+          - __devices.pending | selectattr('deviceId', 'equalto', __client.deviceId) | list | length == 0
+          - __paired | length == 1
+          - __paired[0].clientId == 'openclaw-control-ui'
+          - "'operator.admin' not in __paired[0].scopes"
+        fail_msg: "Device not auto-approved: client={{ __client }} devices={{ __devices }}"
