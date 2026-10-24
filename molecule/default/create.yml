@@ -5,7 +5,7 @@
   gather_facts: false
   no_log: "{{ molecule_no_log }}"
   tasks:
-    - name: Create via openstack
+    - name: Create via molecule_generic
       ansible.builtin.include_role:
-        name: ipa-big.molecule_openstack
+        name: molecule_generic
         tasks_from: create.yml

@@ -7,10 +7,13 @@ dependency:
     role-file: requirements.yml
     requirements-file: requirements.yml
 
+# The platform carries the keys of both molecule_generic drivers: image and
+# volume_size for kubevirt, image_name and groups for openstack.
 platforms:
-  - name: openclaw-ubuntu2204
-    image_name: Ubuntu 22.04 64-bit
-    groups: ['ssh']
+  - name: openclaw-uninstall-ubuntu2404
+    image: quay.io/containerdisks/ubuntu:24.04
+    volume_size: 15Gi
+    image_name: Ubuntu 24.04 64-bit
 
 ansible:
   cfg:
@@ -22,6 +25,8 @@ ansible:
   env:
     ANSIBLE_FORCE_COLOR: "1"
     ANSIBLE_LOAD_CALLBACK_PLUGINS: "1"
+    # kubevirt by default; MOLECULE_DRIVER=openstack selects the fallback
+    MOLECULE_DRIVER: ${MOLECULE_DRIVER:-kubevirt}
 
   executor:
     backend: ansible-playbook
@@ -31,14 +36,14 @@ ansible:
         - --force-handlers
 
   playbooks:
-    create: ../default/create-os.yml
-    destroy: ../default/destroy-os.yml
-    prepare: ../default-install/prepare.yml
-    converge: ../default-install/converge.yml
-    verify: ../default-install/verify.yml
+    create: ../default/create.yml
+    destroy: ../default/destroy.yml
+    prepare: ../default-uninstall/prepare.yml
+    converge: ../default-uninstall/converge.yml
+    verify: ../default-uninstall/verify.yml
 
 scenario:
-  name: install-ubuntu2204-os
+  name: uninstall-ubuntu2404
   test_sequence:
     - dependency
     - destroy

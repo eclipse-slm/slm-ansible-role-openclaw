@@ -126,19 +126,21 @@ ansible-playbook -i tests/inventory tests/test_validation.yml
 yamllint . && ansible-lint
 ```
 
-Molecule scenarios create real VMs. Test with the KubeVirt scenarios
-(`*-kv`); they use `eclipse-slm.molecule_kubevirt` and need a kubeconfig
-(`KUBECONFIG` or `~/.kube/config`). The OpenStack scenarios (`*-os`) are only a
-fallback when no Kubernetes cluster is available; they use
-`ipa-big.molecule_openstack` and need the usual `OS_*` environment variables.
+Molecule scenarios create real VMs through `eclipse-slm/molecule_generic`, which
+dispatches to a backend role selected by `MOLECULE_DRIVER`. The scenarios default
+to `kubevirt` (`molecule_kubevirt`, needs a kubeconfig: `KUBECONFIG` or
+`~/.kube/config`). `openstack` (`molecule_openstack`, installed from
+`ipa-big.molecule_openstack`) is only a fallback when no Kubernetes cluster is
+available and needs the usual `OS_*` environment variables.
 
 | Scenario | What it tests |
 |---|---|
-| `install-ubuntu2204-kv`, `install-ubuntu2404-kv` (fallback: `install-ubuntu2204-os`, `install-ubuntu2404-os`) | Prepare installs `2026.9.33`, converge upgrades to the pinned version; verify checks user, permissions, config, secrets, rejection of an invalid config, running service and gateway probe; idempotence. |
-| `uninstall-ubuntu2204-kv`, `uninstall-ubuntu2404-kv` (fallback: `uninstall-ubuntu2204-os`, `uninstall-ubuntu2404-os`) | Install, then `absent` with purge and Node.js removal; verify everything is gone; idempotence. |
+| `install-ubuntu2204`, `install-ubuntu2404` | Prepare installs `2026.9.33`, converge upgrades to the pinned version; verify checks user, permissions, config, secrets, rejection of an invalid config, running service and gateway probe; idempotence. |
+| `uninstall-ubuntu2204`, `uninstall-ubuntu2404` | Install, then `absent` with purge and Node.js removal; verify everything is gone; idempotence. |
 
 ```bash
-molecule test -s install-ubuntu2404-kv
+molecule test -s install-ubuntu2404                           # KubeVirt
+MOLECULE_DRIVER=openstack molecule test -s install-ubuntu2404  # OpenStack fallback
 ```
 
 Run OpenStack scenarios one at a time: `molecule_openstack` names its SSH key

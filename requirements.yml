@@ -1,11 +1,20 @@
 ---
 roles:
-  - src: "git+https://github.com/eclipse-slm/molecule_kubevirt"
+  - name: molecule_generic
+    src: https://github.com/eclipse-slm/molecule_generic.git
     scm: git
     version: main
-    name: eclipse-slm.molecule_kubevirt
 
-  - name: ipa-big.molecule_openstack
+  # molecule_generic includes its backends by these names
+  - name: molecule_kubevirt
+    src: https://github.com/eclipse-slm/molecule_kubevirt.git
+    scm: git
+    version: main
+
+  # eclipse-slm/molecule_openstack is not installable yet; this role has the
+  # same create.yml/destroy.yml entry points
+  - name: molecule_openstack
+    src: ipa-big.molecule_openstack
     version: 1.0.11
 
 collections:

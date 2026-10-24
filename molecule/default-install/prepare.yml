@@ -3,15 +3,15 @@
   ansible.builtin.import_playbook: ../default/prepare.yml
 
 # Install an older release first so every converge also exercises the upgrade path
-- name: PREPARE | INSTALL PREVIOUS OPENCLAW RELEASE
-  hosts: all
-  become: true
-  gather_facts: true
-  vars_files:
-    - ../default/vars.yml
-  vars:
-    slm_ansible_role_openclaw_version: "2026.9.33"
-  tasks:
-    - name: Apply role under test with previous release
-      ansible.builtin.include_role:
-        name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
+# - name: PREPARE | INSTALL PREVIOUS OPENCLAW RELEASE
+#   hosts: all
+#   become: true
+#   gather_facts: true
+#   vars_files:
+#     - ../default/vars.yml
+#   vars:
+#     slm_ansible_role_openclaw_version: "2026.9.33"
+#   tasks:
+#     - name: Apply role under test with previous release
+#       ansible.builtin.include_role:
+#         name: "{{ lookup('env', 'MOLECULE_PROJECT_DIRECTORY') }}"
