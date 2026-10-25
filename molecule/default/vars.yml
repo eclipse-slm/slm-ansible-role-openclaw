@@ -28,11 +28,11 @@ slm_ansible_role_openclaw_openai_providers:
   - id: "{{ lookup('env', 'OPENCLAW_OPENAI_ID') | default('openapi', true) }}"
     base_url: "{{ lookup('env', 'OPENCLAW_OPENAI_BASE_URL') | default('http://127.0.0.1:9/v1', true) }}"
     api_key: "{{ lookup('env', 'OPENCLAW_OPENAI_API_KEY') | default('fake-llm-k3y', true) }}"
-    models:
-      - id: "{{ lookup('env', 'OPENCLAW_OPENAI_MODEL_ID') | default('deepseek-ai/DeepSeek-V4-Flash-0731', true) }}"
-        name: Model 1
-        context_window: 32768
-        max_tokens: 4096
+    models: []
+      # - id: "{{ lookup('env', 'OPENCLAW_OPENAI_MODEL_ID') | default('deepseek-ai/DeepSeek-V4-Flash-0731', true) }}"
+      #   name: Model 1
+      #   context_window: 32768
+      #   max_tokens: 4096
   # No models: looked up from the fake endpoint started by default-install/prepare.yml
   - id: disc-llm
     base_url: http://127.0.0.1:8099/v1
