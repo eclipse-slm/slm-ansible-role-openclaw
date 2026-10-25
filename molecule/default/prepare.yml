@@ -21,3 +21,33 @@
       loop: "{{ groups['all'] | default([]) }}"
       loop_control:
         label: "{{ item }}"
+
+# Static OpenAI-style model listing for the provider without models in vars.yml; shared
+# by every scenario because vars.yml is
+- name: PREPARE | FAKE OPENAI MODEL ENDPOINT
+  hosts: all
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Create fake model listing directory
+      ansible.builtin.file:
+        path: /srv/fake-models/v1
+        state: directory
+        mode: "0755"
+
+    - name: Create fake model listing
+      ansible.builtin.copy:
+        content: '{"object": "list", "data": [{"id": "disc-alpha", "object": "model"}, {"id": "disc-beta", "object": "model"}]}'
+        dest: /srv/fake-models/v1/models
+        mode: "0644"
+
+    - name: Read service facts
+      ansible.builtin.service_facts:
+
+    # Transient unit: gone after a reboot, which molecule never does
+    - name: Start fake model endpoint
+      ansible.builtin.command: >-
+        systemd-run --unit fake-models
+        python3 -m http.server 8099 --bind 127.0.0.1 --directory /srv/fake-models
+      changed_when: true
+      when: ansible_facts.services['fake-models.service'].state | default('') != 'running'

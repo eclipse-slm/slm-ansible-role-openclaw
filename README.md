@@ -118,18 +118,26 @@ slm_ansible_role_openclaw_openai_providers:
     base_url: http://10.0.0.5:8000/v1
     api_key: "{{ vault_vllm_api_key }}"  # optional
     api: openai-completions           # optional; openai-responses if the server has /v1/responses
-    models:
+    models:                           # optional, see below
       - id: qwen3-32b                 # required
-        name: Qwen3 32B               # optional
+        name: Qwen3 32B               # optional, defaults to the id
         context_window: 131072        # optional
         max_tokens: 8192              # optional
         input: [text]                 # optional; [text, image] for vision models
-  - id: ollama
-    base_url: http://127.0.0.1:11434/v1
-    models:
-      - id: llama3.1
+  - id: litellm                       # no models: looked up from the endpoint
+    base_url: https://litellm.internal/v1
+    api_key: "{{ vault_litellm_api_key }}"
+    validate_certs: false             # optional, only for the lookup (self-signed endpoints)
 slm_ansible_role_openclaw_default_model: vllm/qwen3-32b
 ```
+
+Without `models` (or with an empty list) the role calls `GET <base_url>/models`
+on the target host, with `Authorization: Bearer <api_key>` when a key is set,
+and adds every returned `data[].id` as a model. The standard response has no
+names, context sizes or input types, so list models by hand where those
+matter. If the lookup fails or returns no models, the role stops before
+`openclaw.json` is changed and names the provider and URL. A
+`default_model` on such a provider must be one of the returned models.
 
 Each provider becomes `models.providers.<id>` in `openclaw.json`. The API key
 is written to `.env` as `OPENCLAW_PROVIDER_<ID>_API_KEY` (upper case, `-` →
@@ -264,7 +272,7 @@ available and needs the usual `OS_*` environment variables.
 
 | Scenario | What it tests |
 |---|---|
-| `install-ubuntu2204`, `install-ubuntu2404` | Prepare installs without the proxy (token auth), converge switches to the proxy (basic auth, TLS internal); verify checks user, permissions, config (including an OpenAI-compatible provider and default model), secrets, rejection of an invalid config, running services, closed gateway port, proxy responses (401/200, forged identity header), auto-approval of a new browser device and the gateway probe; idempotence. |
+| `install-ubuntu2204`, `install-ubuntu2404` | Prepare installs without the proxy (token auth), converge switches to the proxy (basic auth, TLS internal); verify checks user, permissions, config (including an OpenAI-compatible provider, models looked up from a fake `/v1/models` endpoint, a failing lookup and the default model), secrets, rejection of an invalid config, running services, closed gateway port, proxy responses (401/200, forged identity header), auto-approval of a new browser device and the gateway probe; idempotence. |
 | `install-oidc-ubuntu2404` | Proxy with OIDC against a fake IdP (config level): oauth2-proxy and Caddy running, private config, pinned version, redirect to sign-in for unauthenticated or forged requests; idempotence. |
 | `uninstall-ubuntu2204`, `uninstall-ubuntu2404` | Install with OIDC and TLS files, then `absent` with purge and Node.js removal; verify the gateway, oauth2-proxy and copied certificates are gone and Caddy is kept; idempotence. |
 
@@ -272,6 +280,10 @@ available and needs the usual `OS_*` environment variables.
 molecule test -s install-ubuntu2404                           # KubeVirt
 MOLECULE_DRIVER=openstack molecule test -s install-ubuntu2404  # OpenStack fallback
 ```
+
+The scenarios' first model provider points at a dead port by default. Set
+`OPENCLAW_OPENAI_ID`, `OPENCLAW_OPENAI_BASE_URL`, `OPENCLAW_OPENAI_API_KEY` and
+`OPENCLAW_OPENAI_MODEL_ID` to test against a real OpenAI-compatible endpoint.
 
 Run OpenStack scenarios one at a time: `molecule_openstack` names its SSH key
 pair per project, so parallel OpenStack scenarios collide on it.

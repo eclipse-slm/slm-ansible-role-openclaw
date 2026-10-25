@@ -1,0 +1,66 @@
+---
+# Providers without models get every id from the OpenAI-style GET <base_url>/models.
+# Runs on the target, which reaches the endpoints like the gateway does.
+- name: Look up models of OpenAI-compatible providers
+  ansible.builtin.uri:
+    url: "{{ item.base_url | regex_replace('/+$', '') }}/models"
+    headers: "{{ {'Authorization': 'Bearer ' ~ item.api_key} if item.api_key | default('') | length > 0 else {} }}"
+    validate_certs: "{{ item.validate_certs | default(true) | bool }}"
+    return_content: true
+    timeout: 30
+  register: __slm_ansible_role_openclaw_models_lookup
+  failed_when: false
+  loop: "{{ slm_ansible_role_openclaw_openai_providers | rejectattr('models', 'defined') | list
+            + slm_ansible_role_openclaw_openai_providers | selectattr('models', 'defined')
+              | selectattr('models', 'equalto', []) | list }}"
+  loop_control:
+    label: "{{ item.id }}"
+  # The request carries the provider API key
+  no_log: true
+
+- name: Collect looked-up model ids
+  ansible.builtin.set_fact:
+    __slm_ansible_role_openclaw_discovered_models: >-
+      {{ __slm_ansible_role_openclaw_discovered_models | default({})
+         | combine({item.item.id: ((item.content | default('{}') | from_json).data | default([])
+                                   | map(attribute='id') | list)
+                                  if item.status | default(0) == 200 else []}) }}
+  loop: "{{ __slm_ansible_role_openclaw_models_lookup.results }}"
+  loop_control:
+    label: "{{ item.item.id }}"
+
+# One assert (no loop) so the message names every failed provider
+- name: Assert every looked-up provider returned models
+  vars:
+    __failed: >-
+      {{ __slm_ansible_role_openclaw_models_lookup.results
+         | selectattr('item.id', 'in', __slm_ansible_role_openclaw_discovered_models
+                                        | dict2items | selectattr('value', 'equalto', []) | map(attribute='key') | list)
+         | list }}
+  ansible.builtin.assert:
+    that:
+      - __failed | length == 0
+    fail_msg: >-
+      Model lookup failed, set models for these providers or fix the endpoints:
+      {% for r in __failed %}{{ r.item.id }} (GET {{ r.item.base_url | regex_replace('/+$', '') }}/models:
+      {{ r.status | default('no response') }} {{ r.msg | default('') }}){{ '; ' if not loop.last }}{% endfor %}
+    quiet: true
+
+- name: Validate default model against looked-up models
+  vars:
+    __refs: >-
+      {%- set out = [] -%}
+      {%- for pid, ids in __slm_ansible_role_openclaw_discovered_models.items() -%}
+      {%- for i in ids -%}{%- set _ = out.append(pid ~ '/' ~ i) -%}{%- endfor -%}
+      {%- endfor -%}
+      {{ out }}
+  ansible.builtin.assert:
+    that:
+      - slm_ansible_role_openclaw_default_model in __refs
+    fail_msg: >-
+      slm_ansible_role_openclaw_default_model {{ slm_ansible_role_openclaw_default_model }}
+      was not returned by its provider; looked-up models: {{ __refs }}.
+    quiet: true
+  when:
+    - slm_ansible_role_openclaw_default_model | length > 0
+    - slm_ansible_role_openclaw_default_model.split('/')[0] in __slm_ansible_role_openclaw_discovered_models

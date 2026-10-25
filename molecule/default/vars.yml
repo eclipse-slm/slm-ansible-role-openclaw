@@ -13,7 +13,7 @@ slm_ansible_role_openclaw_config:
         every: 2h
 slm_ansible_role_openclaw_env:
   DUMMY_PROVIDER_KEY: not-a-real-key
-slm_ansible_role_openclaw_gateway_token: 'molecule-t0ken"$#x y'
+slm_ansible_role_openclaw_gateway_token: 'molecule-gw-t0ken'
 slm_ansible_role_openclaw_gateway_password: molecule-gw-Pa55
 # Passwords molecule-Pa55 (admin) and viewer-Pa55 (no admin)
 slm_ansible_role_openclaw_proxy_basic_users:
@@ -25,12 +25,15 @@ slm_ansible_role_openclaw_proxy_admin_users:
   - molecule
 # Nothing listens on port 9: proves openclaw accepts the provider block, not the endpoint
 slm_ansible_role_openclaw_openai_providers:
-  - id: fake-llm
-    base_url: http://127.0.0.1:9/v1
-    api_key: fake-llm-k3y
+  - id: "{{ lookup('env', 'OPENCLAW_OPENAI_ID') | default('openapi', true) }}"
+    base_url: "{{ lookup('env', 'OPENCLAW_OPENAI_BASE_URL') | default('http://127.0.0.1:9/v1', true) }}"
+    api_key: "{{ lookup('env', 'OPENCLAW_OPENAI_API_KEY') | default('fake-llm-k3y', true) }}"
     models:
-      - id: fake-model
-        name: Fake Model
+      - id: "{{ lookup('env', 'OPENCLAW_OPENAI_MODEL_ID') | default('deepseek-ai/DeepSeek-V4-Flash-0731', true) }}"
+        name: Model 1
         context_window: 32768
         max_tokens: 4096
-slm_ansible_role_openclaw_default_model: fake-llm/fake-model
+  # No models: looked up from the fake endpoint started by default-install/prepare.yml
+  - id: disc-llm
+    base_url: http://127.0.0.1:8099/v1
+slm_ansible_role_openclaw_default_model: "{{ lookup('env', 'OPENCLAW_OPENAI_ID') | default('openapi', true) }}/{{ lookup('env', 'OPENCLAW_OPENAI_MODEL_ID') | default('deepseek-ai/DeepSeek-V4-Flash-0731', true) }}"

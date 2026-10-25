@@ -189,10 +189,10 @@
         fail_msg: slm_ansible_role_openclaw_openai_providers base_url must start with http:// or https://.
         quiet: true
 
+    # Providers without models get them from GET <base_url>/models at install time
     - name: Validate openai provider models
       ansible.builtin.assert:
         that:
-          - __providers | map(attribute='models', default=[]) | select('equalto', []) | list | length == 0
           - >-
             __providers | map(attribute='models', default=[])
             | map('map', attribute='id', default='') | map('list')
@@ -202,8 +202,17 @@
             __providers | map(attribute='models', default=[]) | flatten
             | map(attribute='id', default='') | map('string') | select('equalto', '') | list | length == 0
         fail_msg: >-
-          slm_ansible_role_openclaw_openai_providers models must list at least one model
-          per provider, each with a unique id.
+          slm_ansible_role_openclaw_openai_providers models must have a unique, non-empty
+          id per provider; omit models to look them up from the endpoint.
+        quiet: true
+
+    - name: Validate openai provider validate_certs
+      ansible.builtin.assert:
+        that:
+          - >-
+            __providers | selectattr('validate_certs', 'defined') | map(attribute='validate_certs')
+            | reject('boolean') | list | length == 0
+        fail_msg: slm_ansible_role_openclaw_openai_providers validate_certs must be true or false.
         quiet: true
 
     - name: Validate openai provider api
@@ -217,17 +226,25 @@
           {{ __slm_ansible_role_openclaw_openai_apis }}.
         quiet: true
 
+# A default on a provider without models is checked after the lookup
 - name: Validate default model
   vars:
+    __provider_id: "{{ slm_ansible_role_openclaw_default_model.split('/')[0] }}"
+    __provider: "{{ slm_ansible_role_openclaw_openai_providers | selectattr('id', 'equalto', __provider_id) | first | default({}) }}"
     __refs: >-
       {{ slm_ansible_role_openclaw_openai_providers
+         | selectattr('models', 'defined') | rejectattr('models', 'equalto', [])
          | subelements('models') | map('map', attribute='id') | map('join', '/') | list }}
   ansible.builtin.assert:
     that:
-      - slm_ansible_role_openclaw_default_model in __refs
+      - __provider | length > 0
+      - >-
+        __provider.models | default([]) | length == 0
+        or slm_ansible_role_openclaw_default_model in __refs
     fail_msg: >-
-      slm_ansible_role_openclaw_default_model must be one of {{ __refs }},
-      got {{ slm_ansible_role_openclaw_default_model }}.
+      slm_ansible_role_openclaw_default_model must name a configured provider and model
+      ({{ __refs }} or a model of a provider without models), got
+      {{ slm_ansible_role_openclaw_default_model }}.
     quiet: true
   when:
     - slm_ansible_role_openclaw_state == 'present'

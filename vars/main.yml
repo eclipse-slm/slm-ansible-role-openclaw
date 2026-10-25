@@ -132,14 +132,18 @@ __slm_ansible_role_openclaw_openai_apis:
   - openai-completions
   - openai-responses
 
-# API keys stay ${VAR} references; local servers without auth get a fixed placeholder
+# API keys stay ${VAR} references; local servers without auth get a fixed placeholder.
+# Providers without models use the ids found by tasks/install/models.yml.
 __slm_ansible_role_openclaw_openai_providers_json: >-
   {%- set out = {} -%}
   {%- for p in slm_ansible_role_openclaw_openai_providers -%}
   {%- set models = [] -%}
-  {%- for m in p.models -%}
-  {%- set e = {'id': m.id} -%}
-  {%- if m.name is defined -%}{%- set _ = e.update({'name': m.name}) -%}{%- endif -%}
+  {%- set listed = p.models | default([]) if p.models | default([]) | length > 0
+        else (__slm_ansible_role_openclaw_discovered_models | default({}))[p.id] | default([]) -%}
+  {%- for item in listed -%}
+  {%- set m = item if item is mapping else {'id': item} -%}
+  {#- OpenClaw requires a name; it defaults to the id -#}
+  {%- set e = {'id': m.id, 'name': m.name | default(m.id)} -%}
   {%- if m.context_window is defined -%}{%- set _ = e.update({'contextWindow': m.context_window | int}) -%}{%- endif -%}
   {%- if m.max_tokens is defined -%}{%- set _ = e.update({'maxTokens': m.max_tokens | int}) -%}{%- endif -%}
   {%- if m.input is defined -%}{%- set _ = e.update({'input': m.input}) -%}{%- endif -%}

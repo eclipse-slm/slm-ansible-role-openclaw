@@ -115,10 +115,16 @@
           - {id: llm, base_url: 'llm:8000/v1', models: [{id: m}]}
         expect: slm_ansible_role_openclaw_openai_providers base_url
 
-      - name: provider without models
+      - name: invalid validate_certs
         providers:
-          - {id: llm, base_url: 'http://llm:8000/v1', models: []}
-        expect: slm_ansible_role_openclaw_openai_providers models
+          - {id: llm, base_url: 'http://llm:8000/v1', validate_certs: maybe}
+        expect: slm_ansible_role_openclaw_openai_providers validate_certs
+
+      - name: default model on unknown provider
+        providers:
+          - {id: llm, base_url: 'http://llm:8000/v1'}
+        default_model: other/m
+        expect: slm_ansible_role_openclaw_default_model
 
       - name: duplicate model id
         providers:
@@ -199,6 +205,22 @@
             models:
               - {id: llama3.1}
         slm_ansible_role_openclaw_default_model: vllm/qwen3-32b
+        slm_ansible_role_openclaw_state: present
+
+    # Models are looked up at install time; the default model is checked there
+    - name: Accept openai providers without models
+      ansible.builtin.include_role:
+        name: "{{ playbook_dir | dirname }}"
+        tasks_from: validate.yml
+      vars:
+        slm_ansible_role_openclaw_gateway_password: valid-password
+        slm_ansible_role_openclaw_proxy_basic_users:
+          - name: alice
+            password_hash: '$2b$14$H81L2RzQQsxVL4VXLARLeekuBkRElmiX7tr7I.Tp7ukUKrftScMJ6'
+        slm_ansible_role_openclaw_openai_providers:
+          - {id: litellm, base_url: 'https://litellm.example.com/v1', validate_certs: false}
+          - {id: vllm, base_url: 'http://vllm:8000/v1', models: []}
+        slm_ansible_role_openclaw_default_model: litellm/gpt-4o
         slm_ansible_role_openclaw_state: present
 
     - name: Accept token without proxy

@@ -8,6 +8,9 @@
 - name: Include package tasks
   ansible.builtin.include_tasks: install/package.yml
 
+- name: Include model lookup tasks
+  ansible.builtin.include_tasks: install/models.yml
+
 - name: Include config tasks
   ansible.builtin.include_tasks: install/config.yml
 
